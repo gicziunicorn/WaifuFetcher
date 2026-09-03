@@ -1,0 +1,27 @@
+cargo-features = ["codegen-backend"]
+
+[package]
+name = "WaifuFetcher"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bytes = "1.12.0"
+env_logger = "0.11.11"
+iced = { version = "0.14.0", features = ["image", "tokio", "advanced"] }
+iced_aw = "0.14.1"
+image = "0.25.10"
+imagesize = "0.14.0"
+log = "0.4.33"
+rand = "0.10.2"
+rfd = "0.17.2"
+serde = "1.0.228"
+tokio = { version = "1.52.3", features = ["full"] }
+wreq = { version = "5.3.0", features = ["json"] }
+wreq-util = "2.2.6"
+
+[unstable]
+codegen-backend = true
+
+[profile.dev]
+codegen-backend = "cranelift"
