@@ -5,14 +5,15 @@ mod sites;
 pub mod gui;
 pub mod components;
 
-use app::App;
-use fetcher::Fetcher;
-
 use std::net::Ipv4Addr;
 use iced::Theme;
 use wreq::Client;
 use wreq_util::Emulation;
 use log::{error, info, debug};
+use iced_fonts::BOOTSTRAP_FONT_BYTES;
+
+use app::App;
+use fetcher::Fetcher;
 
 
 static API_KEY: &str = "7d09b9790e4bcf4eecc22c63052cdb3f9f4c00beab93b2932eb0beb32b70d907b23c63210ae7cd33314c55376643ca5f88794777a0828ce77b0b0459836bc5e3";
@@ -22,7 +23,7 @@ pub fn main() {
     env_logger::Builder::from_default_env().init();
 
     // reverse DNS lookup to speed up the first request
-    tokio::net::lookup_host("https://nekos.moe");
+    // tokio::net::lookup_host("https://nekos.moe");
 
     if let Err(e) = try_main() {
         error!("An error occurred: {}", e);
@@ -48,6 +49,7 @@ fn try_main() -> Result<(), String> {
     )
     .title("Waifu Fetcher")
     .theme(Theme::KanagawaDragon)
+    .font(BOOTSTRAP_FONT_BYTES)
     .subscription(App::subscription)
     .run().map_err(|e| e.to_string())
 }

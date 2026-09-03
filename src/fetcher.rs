@@ -1,5 +1,4 @@
 use bytes::Bytes;
-use iced_aw::style::badge::info;
 use log::info;
 use tokio::sync::{mpsc, oneshot};
 use std::thread;

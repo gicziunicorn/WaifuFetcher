@@ -58,25 +58,25 @@ pub fn navbar(appdata: &AppData) -> Element<'_, Message> {
                 .on_press(Message::ToggleSettings),
             Space::new().width(20),
         ]
-        .width(Fill)
-        .align_y(Alignment::Center)
+            .width(Fill)
+            .align_y(Alignment::Center)
     )
-    .width(Fill)
-    .padding([20, 0])
-    .style(|theme: &Theme| {
-        let palette = theme.extended_palette();
-        Style {
-            background: Some(palette.background.weaker.color.into()),
-            text_color: Some(palette.background.weaker.text),
-            border: Border {
-                width: 3.0,
-                radius: 0.into(),
-                color: palette.background.weak.color,
-            },
-            ..Style::default()
-        }
-    })
-    .into()
+        .width(Fill)
+        .padding([20, 0])
+        .style(|theme: &Theme| {
+            let palette = theme.extended_palette();
+            Style {
+                background: Some(palette.background.weaker.color.into()),
+                text_color: Some(palette.background.weaker.text),
+                border: Border {
+                    width: 3.0,
+                    radius: 0.into(),
+                    color: palette.background.weak.color,
+                },
+                ..Style::default()
+            }
+        })
+        .into()
 }
 
 pub fn picture_displayer(appdata: &AppData) -> Element<'_, Message> {

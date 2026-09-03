@@ -45,6 +45,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    Test(String),
     OpenFileDialog,
     FileSelected(Result<String, String>),
     DownloadedImage( Result<(DynamicImage, Handle, usize, usize), String> ),
@@ -94,8 +95,6 @@ pub struct App {
 
 
 impl App {
-    pub fn theme(&self) -> Theme { Theme::TokyoNight }
-
     pub fn new(fetcher: Fetcher) -> (Self, Task<Message>) {
         info!("App::new");
 
@@ -143,7 +142,9 @@ impl App {
             user_id: "4600302",
         };
         let fetcher_clone = fetcher.clone();
-        let fetch = Task::done(Message::FetchImage);
+        let fetch_on_startup = false;
+        let fetch = if fetch_on_startup { Task::done(Message::FetchImage) }
+                    else { Task::none() };
 
         (App {
             fetcher,
@@ -157,6 +158,10 @@ impl App {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::Test(msg) => {
+                info!("Received message: {}", msg);
+                Task::none()
+            }
             Message::OpenFileDialog => {
                 Task::perform(
                     async {
@@ -305,7 +310,7 @@ impl App {
                 }
             }
             Message::KeyPressed(key) => {
-                println!("Pressed key: {:?}", key);
+                // println!("Pressed key: {:?}", key);
                 match key {
                     NamedKey(named) => {
                         match named {
@@ -323,7 +328,6 @@ impl App {
         view(self)
     }
 
-
     pub fn subscription(&self) -> Subscription<Message> {
         iced::keyboard::listen()
             .filter_map(|keyboard_event| {
@@ -335,4 +339,6 @@ impl App {
                 }
             })
     }
+
+    pub fn theme(&self) -> Theme { Theme::TokyoNight }
 }
