@@ -16,6 +16,8 @@ use app::App;
 use fetcher::Fetcher;
 
 
+static APP_NAME: &str = "WaifuFetcher";
+
 static API_KEY: &str = "7d09b9790e4bcf4eecc22c63052cdb3f9f4c00beab93b2932eb0beb32b70d907b23c63210ae7cd33314c55376643ca5f88794777a0828ce77b0b0459836bc5e3";
 static USER_ID: &str = "4600302";
 

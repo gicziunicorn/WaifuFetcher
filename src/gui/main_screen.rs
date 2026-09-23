@@ -3,13 +3,16 @@
 use iced::Length::{self, Fill};
 use iced::{
     Alignment, Border, Color, Element, Theme,
-    widget::{ Space, button, column, row, text, container, Container, stack, image::Viewer, container::Style }
+    widget::{ Space, button, column, row, text, container, Container, stack, container::Style }
 };
+//use iced::widget::image::Viewer;
+use crate::components::image_viewer::Viewer;
 use crate::components::dropdown::{image_dropdown};
 use crate::app::{AppData, Message};
 
 
 pub fn main_screen(appdata: &AppData) -> Element<'_, Message> {
+    println!("rerendered");
     column!(
         navbar(appdata),
         picture_displayer(appdata)
@@ -39,20 +42,11 @@ pub fn navbar(appdata: &AppData) -> Element<'_, Message> {
                         _ => button::Style::default().with_background(palette.background.strong.color),
                     }
                 }),
-            Space::new().width(20),
-            button( text("Folder").color(Color::WHITE) )
-                .on_press(Message::OpenFileDialog)
-                .style(|theme: &Theme, status| {
-                    let palette = theme.extended_palette();
-                    match status {
-                        button::Status::Active => { button::Style::default().with_background(palette.background.stronger.color) }
-                        _ => button::Style::default().with_background(palette.background.strong.color),
-                    }
-                }),
+            // Space::new().width(20),
             Space::new().width(Fill),
             text("Waifu Fetcher").color(Color::WHITE).size(26),
             Space::new().width(Fill),
-            image_dropdown(&appdata.sites, appdata.choice.as_ref(), appdata.misc.dropdown_open, Message::DropdownChanged, "Select a site"),
+            image_dropdown(&appdata.sites, appdata.choice.as_ref(), appdata.states.dropdown_open, Message::DropdownChanged, "Select a site"),
             Space::new().width(10),
             button( text("Settings").color(Color::WHITE) )
                 .on_press(Message::ToggleSettings),

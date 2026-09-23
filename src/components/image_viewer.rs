@@ -1,4 +1,5 @@
-// Copied this code from iced_widget::image::viewer to add some features
+// Copied this code from iced::widget::image::viewer to add some features !later!:
+// - zoom state shouldn't reset when this widget is rerendered
 
 //! Zoom and pan on an image.
 use iced::border;
@@ -8,11 +9,14 @@ use iced::mouse;
 use iced::advanced::widget::tree::{self, Tree};
 use iced::{ ContentFit, Element, Event, Length, Pixels, Point, Radians, Rectangle, Size, Vector };
 
+
+
 /// A frame that displays an image with the ability to zoom in/out and pan.
 pub struct Viewer<Handle> {
     padding: f32,
     width: Length,
     height: Length,
+    scale: f32,
     min_scale: f32,
     max_scale: f32,
     scale_step: f32,
@@ -29,6 +33,7 @@ impl<Handle> Viewer<Handle> {
             padding: 0.0,
             width: Length::Shrink,
             height: Length::Shrink,
+            scale: 1.0,
             min_scale: 0.25,
             max_scale: 10.0,
             scale_step: 0.10,
@@ -67,26 +72,25 @@ impl<Handle> Viewer<Handle> {
         self
     }
 
-    /// Sets the max scale applied to the image of the [`Viewer`].
-    ///
-    /// Default is `10.0`
+    /// Sets the scale of the image of the [`Viewer`]. Default is `1.0`
+    pub fn scale(mut self, scale: f32) -> Self {
+        self.scale = scale;
+        self
+    }
+
+    /// Sets the max scale applied to the image of the [`Viewer`]. Default is `10.0`
     pub fn max_scale(mut self, max_scale: f32) -> Self {
         self.max_scale = max_scale;
         self
     }
 
-    /// Sets the min scale applied to the image of the [`Viewer`].
-    ///
-    /// Default is `0.25`
+    /// Sets the min scale applied to the image of the [`Viewer`]. Default is `0.25`
     pub fn min_scale(mut self, min_scale: f32) -> Self {
         self.min_scale = min_scale;
         self
     }
 
-    /// Sets the percentage the image of the [`Viewer`] will be scaled by
-    /// when zoomed in / out.
-    ///
-    /// Default is `0.10`
+    /// Sets the percentage the image of the [`Viewer`] will be scaled by when zoomed in / out. Default is `0.10`
     pub fn scale_step(mut self, scale_step: f32) -> Self {
         self.scale_step = scale_step;
         self
@@ -163,20 +167,19 @@ where
 
         match event {
             Event::Mouse(mouse::Event::WheelScrolled { delta }) => {
-                let Some(cursor_position) = cursor.position_over(bounds) else {
-                    return;
-                };
+                let Some(cursor_position) = cursor.position_over(bounds)
+                else { return };
 
                 match *delta {
                     mouse::ScrollDelta::Lines { y, .. }
                     | mouse::ScrollDelta::Pixels { y, .. } => {
-                        let state = tree.state.downcast_mut::<State>();
+                        let state = tree.state.downcast_ref::<State>();
                         let previous_scale = state.scale;
 
                         if y < 0.0 && previous_scale > self.min_scale
-                            || y > 0.0 && previous_scale < self.max_scale
+                        || y > 0.0 && previous_scale < self.max_scale
                         {
-                            state.scale = (if y > 0.0 {
+                            let new_scale = (if y > 0.0 {
                                 state.scale * (1.0 + self.scale_step)
                             } else {
                                 state.scale / (1.0 + self.scale_step)
@@ -193,17 +196,16 @@ where
 
                             let factor = state.scale / previous_scale - 1.0;
 
-                            let cursor_to_center =
-                                cursor_position - bounds.center();
+                            let cursor_to_center = cursor_position - bounds.center();
 
                             let adjustment = cursor_to_center * factor
-                                + state.current_offset * factor;
+                                           + state.current_offset * factor;
 
-                            state.current_offset = Vector::new(
+                            let current_offset = Vector::new(
                                 if scaled_size.width > bounds.width {
                                     state.current_offset.x + adjustment.x
                                 } else {
-                                    0.0
+                                    state.current_offset.x + adjustment.x
                                 },
                                 if scaled_size.height > bounds.height {
                                     state.current_offset.y + adjustment.y
@@ -211,6 +213,8 @@ where
                                     0.0
                                 },
                             );
+
+
                         }
                     }
                 }

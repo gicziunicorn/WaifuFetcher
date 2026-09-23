@@ -11,22 +11,28 @@ use iced::{
 use crate::app::{Message, App};
 use crate::gui::{main_screen::main_screen, settings_screen::settings_screen};
 
-pub mod main_screen;
-pub mod settings_screen;
+mod main_screen;
+mod settings_screen;
 
 
 pub fn view(appstate: &App) -> Element<'_, Message> {
     if let Some(appdata) = &appstate.appdata {
         let main_screen = main_screen(appdata);
-        if !appstate.settings {
+        if !appdata.in_settings {
             main_screen
         }
         else {
             stack!(
                 main_screen,
-                settings_screen(appdata)
+                settings_screen(&appdata.settings, appdata.in_settings)
             ).into()
         }
+
+        /*println!("rerendered");
+        stack!(
+            main_screen(appdata),
+            settings_screen(appdata)
+        ).into()*/
     }
 
     // If appdata is not found then show the error message.
