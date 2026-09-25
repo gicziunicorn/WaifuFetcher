@@ -1,33 +1,28 @@
-#![allow(unused)]
+#![warn(unused)]
 use iced::Vector;
-use iced::keyboard::Key;
-use iced::{
-    Element, Subscription, Theme, Task,
-    keyboard::{
-        Key::Named as NamedKey,
-        key::Named as NamedKeys,
-        Event::KeyReleased
-    },
-};
-use iced::widget::image::Handle;
+use iced::{Element, Subscription, Task};
 use image::DynamicImage;
-use log::info;
+use iced::widget::image::Handle;
+use iced::keyboard::{
+    Key::{self, Named as NamedKey, Character as CharacterKey},
+    key::{Named as NamedKeys},
+    Event::KeyReleased
+};
+use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::time::Instant;
+use dirs::{home_dir, picture_dir, config_local_dir};
 use rfd::AsyncFileDialog;
 use crate::APP_NAME;
 use crate::fetcher::{FetchRequest,  Fetcher};
-use log::error;
 use crate::components::dropdown::{DropdownAction, DropdownItem};
 use crate::gui::view;
-use crate::sites::{Site, Sites};
-use std::time::Instant;
-use dirs::{home_dir, picture_dir, config_local_dir};
-use serde_json as json;
+use crate::sites::Sites;
 
 
-
+// Messages that the application uses to notify itself and handle tasks.
 #[derive(Debug, Clone)]
 pub enum Message {
     Test(String),
@@ -43,37 +38,54 @@ pub enum Message {
     SaveCompleted(Result<String, String>),
     KeyPressed(Key),
     SettingsMenuFocused(bool),
-    ImageViewer(f32, Vector)
+    SetViewerScale(f32),
+    ChangeViewerScale(i8),
+    SetViewerOffset(Vector),
+    ChangeImageOpacity(f32),
 }
 
 
+// Holds values for the states of different elements inside the app.
+// These aren't directly changeable from the settings.
 #[derive(Debug, Clone)]
 pub struct States {
     pub dropdown_open: bool,
     pub settings_menu_focused: bool,
+    pub zoom: f32,
+    pub image_offset: Vector,
 }
 impl Default for States {
     fn default() -> Self {
         States {
             dropdown_open: false,
             settings_menu_focused: false,
+            zoom: 1.0,
+            image_offset: Vector::default(),
         }
     }
 }
 
 
-// Holds values that can be changed by the user in the settings
-// This struct will be as the configuration
+// Holds values that can be changed by the user in the settings.
+// This struct is the configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub fill_screen: bool,
     pub save_path: PathBuf,
+    pub image_scale_step: f32,
+    pub image_min_scale: f32,
+    pub image_max_scale: f32,
+    pub image_opacity: f32,
 }
 impl Default for Settings {
     fn default() -> Self {
         Settings {
             fill_screen: true,
             save_path: PathBuf::default(),
+            image_scale_step: 0.1,
+            image_min_scale: 0.25,
+            image_max_scale: 10.0,
+            image_opacity: 1.0,
         }
     }
 }
@@ -148,8 +160,9 @@ impl App {
                 .join("config.toml");
 
             // Read the file's content
-            let bytes = fs::read(config_file_path)
+            let bytes = fs::read(&config_file_path)
                 .map_err(|e| e.to_string())?;
+            info!("Read config from '{}'", config_file_path.display());
 
             // Then just deserialize it into the struct
             toml::from_slice(&bytes).map_err(|e| e.to_string())
@@ -157,28 +170,21 @@ impl App {
 
         let appdata = match get_config() {
             Ok(settings) => {
-                info!("Result: {:#?}", settings);
+                debug!("Result: {:#?}", settings);
                 AppData {
                     settings,
                     ..Default::default()
                 }
             }
             Err(err) => {
-                error!("Error while loading config file: '{}', using default config. Saving the settings to file will also be disabled.", err);
+                error!("Error while loading config file: \n'{}'", err);
+                error!("Using default config. Saving the settings to file will also be disabled.");
                 AppData::default()
+                // Make a backup of the bad config and generate a new one
             }
         };
 
 
-        let json = json::to_string_pretty(&appdata.settings);
-        match json {
-            Ok(data) => {
-                info!("Json data:\n{}", data);
-            }
-            Err(e) => {
-                info!("Couldn't create json data from settings: {}", e.to_string());
-            }
-        }
         let toml = toml::to_string_pretty(&appdata.settings);
         match toml {
             Ok(data) => {
@@ -383,12 +389,22 @@ impl App {
                     }
                 }
             }
+            // handle key presses
             Message::KeyPressed(key) => {
-                // println!("Pressed key: {:?}", key);
-                match key {
+                //debug!("Key pressed: {:?}", key);
+                match key.as_ref() {
                     NamedKey(named) => {
                         match named {
                             NamedKeys::Escape => Task::done(Message::ToggleSettings),
+                            NamedKeys::ArrowUp => Task::done(Message::ChangeViewerScale(1)),
+                            NamedKeys::ArrowDown => Task::done(Message::ChangeViewerScale(-1)),
+                            _ => Task::none()
+                        }
+                    },
+                    CharacterKey(char) => {
+                        match char {
+                            "+" => Task::done(Message::ChangeImageOpacity(0.1)),
+                            "-" => Task::done(Message::ChangeImageOpacity(-0.1)),
                             _ => Task::none()
                         }
                     },
@@ -401,7 +417,34 @@ impl App {
                 }
                 Task::none()
             }
-            Message::ImageViewer(scale, offset) => {
+            Message::SetViewerScale(scale) => {
+                if let Some(appdata) = &mut self.appdata {
+                    appdata.states.zoom = scale;
+                }
+                Task::none()
+            }
+            Message::ChangeViewerScale(r) => {
+                if let Some(appdata) = &mut self.appdata {
+                    if r > 0 && appdata.states.zoom < appdata.settings.image_max_scale {
+                        appdata.states.zoom *= 1.0 + appdata.settings.image_scale_step
+                    } else
+                    if r < 0 && appdata.states.zoom > appdata.settings.image_min_scale {
+                        appdata.states.zoom /= 1.0 + appdata.settings.image_scale_step;
+                    }
+                }
+
+                Task::none()
+            }
+            Message::SetViewerOffset(offset) => {
+                if let Some(appdata) = &mut self.appdata {
+                    appdata.states.image_offset = offset;
+                }
+                Task::none()
+            }
+            Message::ChangeImageOpacity(change) => {
+                if let Some(appdata) = &mut self.appdata {
+                    appdata.settings.image_opacity = (appdata.settings.image_opacity + change).clamp(0.0, 1.0);
+                }
                 Task::none()
             }
         }

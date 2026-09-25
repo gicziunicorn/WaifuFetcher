@@ -4,9 +4,16 @@ features:
  - refetch image in app
  - select a folder
  - save the current image to the folder
+ - the image viewer's state is now handled by the app, not reseting on rerender
 
  - keybind subscription function
  - timer for fetching
 
  - started settings menu
  - the code is unoptimized and error handling will be reworked
+
+
+To fix:
+ - first fetch takes longer
+ - config should delete unused values on loading
+ - move the full State out of the image viewer, so it won't cause bugs on rerender

@@ -1,7 +1,9 @@
-// Copied this code from iced::widget::image::viewer to add some features !later!:
-// - zoom state shouldn't reset when this widget is rerendered
+// Copied this code from iced::widget::image::viewer to add some features:
+// - zoom and offset shouldn't reset when this widget is rerendered
+// => moved scale and offset variable out of the element's inner scope
 
 //! Zoom and pan on an image.
+#[warn(unused)]
 use iced::border;
 use iced::advanced::image::{self, FilterMethod, Image};
 use iced::advanced::{Clipboard, Layout, layout, Shell, Widget, renderer};
@@ -12,10 +14,12 @@ use iced::{ ContentFit, Element, Event, Length, Pixels, Point, Radians, Rectangl
 
 
 /// A frame that displays an image with the ability to zoom in/out and pan.
-pub struct Viewer<Handle> {
+pub struct Viewer<'a, Handle, Message> {
     padding: f32,
     width: Length,
     height: Length,
+    offset: Vector,
+    opacity: f32,
     scale: f32,
     min_scale: f32,
     max_scale: f32,
@@ -23,82 +27,47 @@ pub struct Viewer<Handle> {
     handle: Handle,
     filter_method: FilterMethod,
     content_fit: ContentFit,
+    on_scale: Box<dyn Fn(f32) -> Message + 'a>,
+    on_offset: Box<dyn Fn(Vector) -> Message + 'a>,
 }
 
-impl<Handle> Viewer<Handle> {
+impl<'a, Handle, Message> Viewer<'a, Handle, Message> {
     /// Creates a new [`Viewer`] with the given [`State`].
-    pub fn new<T: Into<Handle>>(handle: T) -> Self {
+    pub fn new<T, F1, F2>(
+        handle: T,
+        width: impl Into<Length>,
+        height: impl Into<Length>,
+        scale: f32,
+        offset: Vector,
+        opacity: f32,
+        on_scale: F1,
+        on_offset: F2
+    ) -> Self
+    where
+        T: Into<Handle>,
+        F1: Fn(f32) -> Message + 'a,
+        F2: Fn(Vector) -> Message + 'a,
+    {
         Viewer {
             handle: handle.into(),
             padding: 0.0,
-            width: Length::Shrink,
-            height: Length::Shrink,
-            scale: 1.0,
+            width: width.into(),
+            height: height.into(),
+            offset,
+            opacity,
+            scale,
             min_scale: 0.25,
             max_scale: 10.0,
             scale_step: 0.10,
             filter_method: FilterMethod::default(),
             content_fit: ContentFit::default(),
+            on_scale: Box::new(on_scale),
+            on_offset: Box::new(on_offset),
         }
-    }
-
-    /// Sets the [`FilterMethod`] of the [`Viewer`].
-    pub fn filter_method(mut self, filter_method: image::FilterMethod) -> Self {
-        self.filter_method = filter_method;
-        self
-    }
-
-    /// Sets the [`ContentFit`] of the [`Viewer`].
-    pub fn content_fit(mut self, content_fit: ContentFit) -> Self {
-        self.content_fit = content_fit;
-        self
-    }
-
-    /// Sets the padding of the [`Viewer`].
-    pub fn padding(mut self, padding: impl Into<Pixels>) -> Self {
-        self.padding = padding.into().0;
-        self
-    }
-
-    /// Sets the width of the [`Viewer`].
-    pub fn width(mut self, width: impl Into<Length>) -> Self {
-        self.width = width.into();
-        self
-    }
-
-    /// Sets the height of the [`Viewer`].
-    pub fn height(mut self, height: impl Into<Length>) -> Self {
-        self.height = height.into();
-        self
-    }
-
-    /// Sets the scale of the image of the [`Viewer`]. Default is `1.0`
-    pub fn scale(mut self, scale: f32) -> Self {
-        self.scale = scale;
-        self
-    }
-
-    /// Sets the max scale applied to the image of the [`Viewer`]. Default is `10.0`
-    pub fn max_scale(mut self, max_scale: f32) -> Self {
-        self.max_scale = max_scale;
-        self
-    }
-
-    /// Sets the min scale applied to the image of the [`Viewer`]. Default is `0.25`
-    pub fn min_scale(mut self, min_scale: f32) -> Self {
-        self.min_scale = min_scale;
-        self
-    }
-
-    /// Sets the percentage the image of the [`Viewer`] will be scaled by when zoomed in / out. Default is `0.10`
-    pub fn scale_step(mut self, scale_step: f32) -> Self {
-        self.scale_step = scale_step;
-        self
     }
 }
 
-impl<Message, Theme, Renderer, Handle> Widget<Message, Theme, Renderer>
-    for Viewer<Handle>
+impl<'a, Message, Theme, Renderer, Handle> Widget<Message, Theme, Renderer> for Viewer<'a, Handle, Message>
 where
     Renderer: image::Renderer<Handle = Handle>,
     Handle: Clone,
@@ -171,50 +140,48 @@ where
                 else { return };
 
                 match *delta {
-                    mouse::ScrollDelta::Lines { y, .. }
-                    | mouse::ScrollDelta::Pixels { y, .. } => {
-                        let state = tree.state.downcast_ref::<State>();
-                        let previous_scale = state.scale;
-
-                        if y < 0.0 && previous_scale > self.min_scale
-                        || y > 0.0 && previous_scale < self.max_scale
+                    mouse::ScrollDelta::Lines { y, .. } |
+                    mouse::ScrollDelta::Pixels { y, .. } => {
+                        if y < 0.0 && self.scale > self.min_scale
+                        || y > 0.0 && self.scale < self.max_scale
                         {
                             let new_scale = (if y > 0.0 {
-                                state.scale * (1.0 + self.scale_step)
+                                self.scale * (1.0 + self.scale_step)
                             } else {
-                                state.scale / (1.0 + self.scale_step)
+                                self.scale / (1.0 + self.scale_step)
                             })
                             .clamp(self.min_scale, self.max_scale);
 
                             let scaled_size = scaled_image_size(
                                 renderer,
                                 &self.handle,
-                                state,
+                                new_scale,
                                 bounds.size(),
                                 self.content_fit,
                             );
 
-                            let factor = state.scale / previous_scale - 1.0;
+                            let factor = new_scale / self.scale - 1.0;
 
                             let cursor_to_center = cursor_position - bounds.center();
 
                             let adjustment = cursor_to_center * factor
-                                           + state.current_offset * factor;
+                                           + self.offset * factor;
 
-                            let current_offset = Vector::new(
+                            let new_offset = Vector::new(
                                 if scaled_size.width > bounds.width {
-                                    state.current_offset.x + adjustment.x
-                                } else {
-                                    state.current_offset.x + adjustment.x
-                                },
+                                    self.offset.x + adjustment.x
+                                }
+                                else { 0.0 },
                                 if scaled_size.height > bounds.height {
-                                    state.current_offset.y + adjustment.y
-                                } else {
-                                    0.0
-                                },
+                                    self.offset.y + adjustment.y
+                                }
+                                else { 0.0 },
                             );
 
-
+                            let update_scale = &self.on_scale;
+                            shell.publish( update_scale(new_scale) );
+                            let update_offset = &self.on_offset;
+                            shell.publish( update_offset(new_offset) );
                         }
                     }
                 }
@@ -223,14 +190,13 @@ where
                 shell.capture_event();
             }
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
-                let Some(cursor_position) = cursor.position_over(bounds) else {
-                    return;
-                };
+                let Some(cursor_position) = cursor.position_over(bounds)
+                else { return; };
 
                 let state = tree.state.downcast_mut::<State>();
 
                 state.cursor_grabbed_at = Some(cursor_position);
-                state.starting_offset = state.current_offset;
+                state.starting_offset = self.offset;
 
                 shell.capture_event();
             }
@@ -246,16 +212,15 @@ where
                     let scaled_size = scaled_image_size(
                         renderer,
                         &self.handle,
-                        state,
+                        self.scale,
                         bounds.size(),
                         self.content_fit,
                     );
+
                     let hidden_width = (scaled_size.width - bounds.width / 2.0)
                         .max(0.0)
                         .round();
-
-                    let hidden_height = (scaled_size.height
-                        - bounds.height / 2.0)
+                    let hidden_height = (scaled_size.height - bounds.height / 2.0)
                         .max(0.0)
                         .round();
 
@@ -264,18 +229,17 @@ where
                     let x = if bounds.width < scaled_size.width {
                         (state.starting_offset.x - delta.x)
                             .clamp(-hidden_width, hidden_width)
-                    } else {
-                        0.0
-                    };
+                    }
+                    else { 0.0 };
 
                     let y = if bounds.height < scaled_size.height {
                         (state.starting_offset.y - delta.y)
                             .clamp(-hidden_height, hidden_height)
-                    } else {
-                        0.0
-                    };
+                    }
+                    else { 0.0 };
 
-                    state.current_offset = Vector::new(x, y);
+                    let update_offset = &self.on_offset;
+                    shell.publish( update_offset(Vector::new(x, y)) );
                     shell.request_redraw();
                     shell.capture_event();
                 }
@@ -315,13 +279,13 @@ where
         _cursor: mouse::Cursor,
         viewport: &Rectangle,
     ) {
-        let state = tree.state.downcast_ref::<State>();
+        //let state = tree.state.downcast_ref::<State>();
         let bounds = layout.bounds();
 
         let final_size = scaled_image_size(
             renderer,
             &self.handle,
-            state,
+            self.scale,
             bounds.size(),
             self.content_fit,
         );
@@ -337,7 +301,19 @@ where
                 _ => Vector::new(diff_w / 2.0, diff_h / 2.0),
             };
 
-            image_top_left - state.offset(bounds, final_size)
+            let offset = {
+                let hidden_width = (final_size.width - bounds.width / 2.0)
+                    .max(0.0).round();
+                let hidden_height = (final_size.height - bounds.height / 2.0)
+                    .max(0.0).round();
+
+                Vector::new(
+                    self.offset.x.clamp(-hidden_width, hidden_width),
+                    self.offset.y.clamp(-hidden_height, hidden_height),
+                )
+            };
+
+            image_top_left - offset
         };
 
         let drawing_bounds = Rectangle::new(bounds.position(), final_size);
@@ -350,7 +326,7 @@ where
                         border_radius: border::Radius::default(),
                         filter_method: self.filter_method,
                         rotation: Radians(0.0),
-                        opacity: 1.0,
+                        opacity: self.opacity,
                         snap: true,
                     },
                     drawing_bounds,
@@ -366,58 +342,37 @@ where
 /// The local state of a [`Viewer`].
 #[derive(Debug, Clone, Copy)]
 pub struct State {
-    scale: f32,
     starting_offset: Vector,
-    current_offset: Vector,
     cursor_grabbed_at: Option<Point>,
 }
 
 impl Default for State {
     fn default() -> Self {
         Self {
-            scale: 1.0,
             starting_offset: Vector::default(),
-            current_offset: Vector::default(),
             cursor_grabbed_at: None,
         }
     }
 }
 
 impl State {
-    /// Creates a new [`State`].
     pub fn new() -> Self {
         State::default()
     }
 
-    /// Returns the current offset of the [`State`], given the bounds
-    /// of the [`Viewer`] and its image.
-    fn offset(&self, bounds: Rectangle, image_size: Size) -> Vector {
-        let hidden_width =
-            (image_size.width - bounds.width / 2.0).max(0.0).round();
-
-        let hidden_height =
-            (image_size.height - bounds.height / 2.0).max(0.0).round();
-
-        Vector::new(
-            self.current_offset.x.clamp(-hidden_width, hidden_width),
-            self.current_offset.y.clamp(-hidden_height, hidden_height),
-        )
-    }
-
-    /// Returns if the cursor is currently grabbed by the [`Viewer`].
     pub fn is_cursor_grabbed(&self) -> bool {
         self.cursor_grabbed_at.is_some()
     }
 }
 
-impl<'a, Message, Theme, Renderer, Handle> From<Viewer<Handle>>
+impl<'a, Message, Theme, Renderer, Handle> From<Viewer<'a, Handle, Message>>
     for Element<'a, Message, Theme, Renderer>
 where
     Renderer: 'a + image::Renderer<Handle = Handle>,
     Message: 'a,
     Handle: Clone + 'a,
 {
-    fn from(viewer: Viewer<Handle>) -> Element<'a, Message, Theme, Renderer> {
+    fn from(viewer: Viewer<'a, Handle, Message>) -> Element<'a, Message, Theme, Renderer> {
         Element::new(viewer)
     }
 }
@@ -428,7 +383,7 @@ where
 pub fn scaled_image_size<Renderer>(
     renderer: &Renderer,
     handle: &<Renderer as image::Renderer>::Handle,
-    state: &State,
+    scale: f32,
     bounds: Size,
     content_fit: ContentFit,
 ) -> Size
@@ -443,7 +398,7 @@ where
     let adjusted_fit = content_fit.fit(image_size, bounds);
 
     Size::new(
-        adjusted_fit.width * state.scale,
-        adjusted_fit.height * state.scale,
+        adjusted_fit.width * scale,
+        adjusted_fit.height * scale,
     )
 }

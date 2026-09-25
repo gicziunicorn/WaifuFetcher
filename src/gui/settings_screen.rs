@@ -1,7 +1,5 @@
 #![allow(unused)]
-
 use std::path::PathBuf;
-
 use iced::{
     Border, Color, Element, Length::{self, Fill}, Padding, Theme, alignment::{Horizontal, Vertical}, widget::{Container, Text, button, column, container, mouse_area, opaque, row, stack, text}
 };

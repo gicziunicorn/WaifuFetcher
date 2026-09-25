@@ -1,5 +1,4 @@
 #![warn(unused)]
-
 use iced::Length::{self, Fill};
 use iced::{
     Alignment, Border, Color, Element, Theme,
@@ -7,12 +6,12 @@ use iced::{
 };
 //use iced::widget::image::Viewer;
 use crate::components::image_viewer::Viewer;
-use crate::components::dropdown::{image_dropdown};
+use crate::components::dropdown::image_dropdown;
 use crate::app::{AppData, Message};
 
 
 pub fn main_screen(appdata: &AppData) -> Element<'_, Message> {
-    println!("rerendered");
+    //println!("rerendered");
     column!(
         navbar(appdata),
         picture_displayer(appdata)
@@ -42,7 +41,6 @@ pub fn navbar(appdata: &AppData) -> Element<'_, Message> {
                         _ => button::Style::default().with_background(palette.background.strong.color),
                     }
                 }),
-            // Space::new().width(20),
             Space::new().width(Fill),
             text("Waifu Fetcher").color(Color::WHITE).size(26),
             Space::new().width(Fill),
@@ -75,15 +73,22 @@ pub fn navbar(appdata: &AppData) -> Element<'_, Message> {
 
 pub fn picture_displayer(appdata: &AppData) -> Element<'_, Message> {
     if let Some(handle) = &appdata.image_handle {
-        let image = Viewer::new(handle)
-            .width(
-                if appdata.settings.fill_screen { Length::Fill }
-                else { Length::Fixed(appdata.width) }
-            )
-            .height(
-                if appdata.settings.fill_screen { Length::Fill }
-                else { Length::Fixed(appdata.height) }
-            );
+        let width = if appdata.settings.fill_screen { Length::Fill }
+                else { Length::Fixed(appdata.width) };
+        let height = if appdata.settings.fill_screen { Length::Fill }
+                else { Length::Fixed(appdata.height) };
+
+        let image = Viewer::new(
+            handle,
+            width,
+            height,
+            appdata.states.zoom,
+            appdata.states.image_offset,
+            appdata.settings.image_opacity,
+            Message::SetViewerScale,
+            Message::SetViewerOffset,
+        );
+
         let _overlay: Container<'_, Message> = container("")
             .width(Length::Fill)
             .height(Length::Fill)
@@ -93,6 +98,7 @@ pub fn picture_displayer(appdata: &AppData) -> Element<'_, Message> {
                     ..Default::default()
                 }
             });
+
         container(
             //stack!(image, overlay).width(Length::Shrink).height(Length::Shrink)
             stack!(image)
