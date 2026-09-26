@@ -1,4 +1,4 @@
-#![warn(unused)]
+#![allow(unused)]
 use iced::Vector;
 use iced::{Element, Subscription, Task};
 use image::DynamicImage;
@@ -13,9 +13,10 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::time::Instant;
-use dirs::{home_dir, picture_dir, config_local_dir};
+use dirs::{home_dir, picture_dir};
 use rfd::AsyncFileDialog;
-use crate::APP_NAME;
+use crate::ResultToString;
+use crate::config::Config;
 use crate::fetcher::{FetchRequest,  Fetcher};
 use crate::components::dropdown::{DropdownAction, DropdownItem};
 use crate::gui::view;
@@ -42,6 +43,7 @@ pub enum Message {
     ChangeViewerScale(i8),
     SetViewerOffset(Vector),
     ChangeImageOpacity(f32),
+    SaveSettings,
 }
 
 
@@ -79,9 +81,13 @@ pub struct Settings {
 }
 impl Default for Settings {
     fn default() -> Self {
+        let save_path = picture_dir()
+            .or_else(home_dir)
+            .unwrap_or_default();
+
         Settings {
             fill_screen: true,
-            save_path: PathBuf::default(),
+            save_path,
             image_scale_step: 0.1,
             image_min_scale: 0.25,
             image_max_scale: 10.0,
@@ -140,6 +146,7 @@ impl Default for AppData {
 pub struct App {
     pub fetcher: Fetcher,
     pub appdata: Option<AppData>,
+    pub config: Option<Config>,
     pub error: Option<String>,
     timer: Instant,
 }
@@ -147,96 +154,73 @@ pub struct App {
 
 impl App {
     pub fn new(fetcher: Fetcher) -> (Self, Task<Message>) {
-        info!("Entered App::new");
+        debug!("Entered App::new");
 
-        // Read the config first
-        fn get_config() -> Result<Settings, String> {
-            // First try to find the local config directory
-            let config_file_path = config_local_dir()
-                .or_else(home_dir)
-                .ok_or_else(|| "Failed to find config folder.".to_string()) ?
-                // Then find the file
-                .join(APP_NAME)
-                .join("config.toml");
-
-            // Read the file's content
-            let bytes = fs::read(&config_file_path)
-                .map_err(|e| e.to_string())?;
-            info!("Read config from '{}'", config_file_path.display());
-
-            // Then just deserialize it into the struct
-            toml::from_slice(&bytes).map_err(|e| e.to_string())
-        }
-
-        let appdata = match get_config() {
-            Ok(settings) => {
-                debug!("Result: {:#?}", settings);
-                AppData {
-                    settings,
-                    ..Default::default()
-                }
-            }
-            Err(err) => {
-                error!("Error while loading config file: \n'{}'", err);
-                error!("Using default config. Saving the settings to file will also be disabled.");
-                AppData::default()
-                // Make a backup of the bad config and generate a new one
-            }
-        };
-
-
-        let toml = toml::to_string_pretty(&appdata.settings);
-        match toml {
-            Ok(data) => {
-                info!("Toml data:\n{}", data);
-            }
-            Err(e) => {
-                info!("Couldn't create toml data from settings: {}", e.to_string());
-            }
-        }
-
-        // info!("Set config directory to: {:?}", app_config_folder);
-        // fs::create_dir_all(app_config_folder);
-
-
-        let save_path = picture_dir()
-            .or_else(home_dir)
-            //.map(|v| v.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        info!("Set save directory to: {:?}", save_path);
-
-        /*let appdata = AppData {
-            choice: Some(Sites::Nekos),
-            settings: Settings {
-                save_path,
-                ..Default::default()
-            },
-            ..Default::default()
-        };*/
-
-        // info!("Tags: {}", appdata.tags);
-
-
-        // let start_site = appdata.choice.unwrap();
-        // initial fetch when the app starts
-        /* let data = FetchRequest {
-            url: start_site.url(),
-            tags: appdata.tags,
-            limit: "1",
-            api_key: "7d09b9790e4bcf4eecc22c63052cdb3f9f4c00beab93b2932eb0beb32b70d907b23c63210ae7cd33314c55376643ca5f88794777a0828ce77b0b0459836bc5e3",
-            user_id: "4600302",
-        };*/
         let fetch_on_startup = false;
-        let fetch = if fetch_on_startup { Task::done(Message::FetchImage) }
+        let task = if fetch_on_startup { Task::done(Message::FetchImage) }
                     else { Task::none() };
 
+        // Initialize the config
+        let config: Option<Config> = match Config::new() {
+            Ok(val) => Some(val),
+            Err(err) => {
+                error!("Error while loading config: \"{}\"", err);
+                error!("Using default config. Saving the settings to file will also be disabled.");
+                None
+            },
+        };
+
+        // Here the config is being parsed, fixed and saved; whatever is needed
+        let settings = if let Some(config) = &config {
+            match config.read_config() {
+                Ok(settings) => {
+                    debug!("Read config: {:#?}", settings);
+                    settings
+                }
+                Err(err) => {
+                    error!("Error while parsing configuration file: \n'{}'", err);
+                    error!("Using default configuration.");
+
+                    info!("Creating backup from current configuration and saving the default settings.");
+                    let bak_file = config.file.with_added_extension("bak");
+
+                    let settings = Settings::default();
+
+                    let copy_result = fs::copy(&config.file, &bak_file);
+                    if copy_result.is_ok() {
+                        let file_name = bak_file.file_name().map(|v| v.to_string_lossy().into_owned()).unwrap_or("{Failed to get file name}".to_string());
+                        info!("Backed up the previous configuration as '{}'.", file_name);
+                        // Save the default config
+                        match config.save_config(&settings) {
+                            Err(err) => { error!("Failed to overwrite previous configuration: {}", err); }
+                            _ => { info!("Successfully overwrote previous configuration.") }
+                        }
+                    }
+                    else {
+                        error!("Failed to create backup: {}", copy_result.err().unwrap().to_string());
+                        error!("The configuration will not be overwritten. Save the settings if you want to reset it.");
+                    }
+
+                    settings
+                }
+            }
+        }
+        else { Settings::default() };
+
+        let appdata = AppData {
+            settings,
+            ..Default::default()
+        };
+
+        // return the task together with Self, this way it will run as soon as possible.
         (App {
             fetcher,
             appdata: Some(appdata),
+            config,
             error: None,
             timer: Instant::now(),
         },
-        fetch)
+        task)
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -370,10 +354,10 @@ impl App {
                             tokio::task::spawn_blocking(move || {
                                 image_copy.save(&path)
                                     .map(|_| path.to_string_lossy().into_owned()) // return the path
-                                    .map_err(|e| e.to_string())
+                                    .err_to_string()
                             })
                             .await
-                            .map_err(|e| e.to_string())?
+                            .err_to_string()?
                         },
                         Message::SaveCompleted,
                     )
@@ -444,6 +428,16 @@ impl App {
             Message::ChangeImageOpacity(change) => {
                 if let Some(appdata) = &mut self.appdata {
                     appdata.settings.image_opacity = (appdata.settings.image_opacity + change).clamp(0.0, 1.0);
+                }
+                Task::none()
+            }
+            Message::SaveSettings => {
+                if let Some(config) = &self.config
+                && let Some(appdata) = &self.appdata {
+                    match config.save_config(&appdata.settings) {
+                        Err(err) => { error!("Failed to save current configuration: {}", err); }
+                        _ => { info!("Saved current configuration.") }
+                    }
                 }
                 Task::none()
             }

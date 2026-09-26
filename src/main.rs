@@ -1,5 +1,6 @@
 #![allow(unused)]
 mod app;
+mod config;
 mod fetcher;
 mod sites;
 pub mod gui;
@@ -21,6 +22,19 @@ static APP_NAME: &str = "WaifuFetcher";
 static API_KEY: &str = "7d09b9790e4bcf4eecc22c63052cdb3f9f4c00beab93b2932eb0beb32b70d907b23c63210ae7cd33314c55376643ca5f88794777a0828ce77b0b0459836bc5e3";
 static USER_ID: &str = "4600302";
 
+
+// Make converting errors to String easier
+trait ResultToString<T> {
+    fn err_to_string(self) -> Result<T, String>;
+}
+impl<T, E: std::fmt::Display> ResultToString<T> for Result<T, E> {
+    fn err_to_string(self) -> Result<T, String> {
+        self.map_err(|e| e.to_string())
+    }
+}
+
+
+// The start of the app
 pub fn main() {
     env_logger::Builder::from_default_env().init();
 
@@ -39,7 +53,7 @@ fn try_main() -> Result<(), String> {
         .local_addresses(Ipv4Addr::UNSPECIFIED, None) // disable ipv6 (i guess)
         .emulation(Emulation::Chrome137)
         .build()
-        .map_err(|e| e.to_string())?;
+        .err_to_string()?;
 
     let fetcher = Fetcher::new(client.clone());
 
@@ -53,5 +67,6 @@ fn try_main() -> Result<(), String> {
     .theme(Theme::KanagawaDragon)
     .font(BOOTSTRAP_FONT_BYTES)
     .subscription(App::subscription)
-    .run().map_err(|e| e.to_string())
+    .run()
+    .err_to_string()
 }

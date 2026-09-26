@@ -17,3 +17,5 @@ To fix:
  - first fetch takes longer
  - config should delete unused values on loading
  - move the full State out of the image viewer, so it won't cause bugs on rerender
+ - app is for sure not responsive
+ - do something with floats before saving to file 0.3999999999999999999 haha

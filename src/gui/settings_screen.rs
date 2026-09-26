@@ -1,7 +1,7 @@
 #![allow(unused)]
 use std::path::PathBuf;
 use iced::{
-    Border, Color, Element, Length::{self, Fill}, Padding, Theme, alignment::{Horizontal, Vertical}, widget::{Container, Text, button, column, container, mouse_area, opaque, row, stack, text}
+    Border, Color, Element, Gradient, Length::{self, Fill}, Padding, Radians, Theme, alignment::{Horizontal, Vertical}, gradient::Linear as LinearGradient, widget::{Container, Space, Text, button, column, container, mouse_area, opaque, row, stack, text}
 };
 use iced::widget::container::Style;
 use iced_fonts::bootstrap;
@@ -10,9 +10,6 @@ use crate::app::{AppData, Message, Settings};
 
 
 pub fn settings_screen(settings: &Settings, focused: bool) -> Element<'_, Message> {
-    /*if !appdata.in_settings {
-        return container("").into();
-    }*/
     let x_icon = bootstrap::x().color(Color::WHITE).size(30).align_x(Horizontal::Center).align_y(Vertical::Center);
 
 
@@ -50,11 +47,30 @@ pub fn settings_screen(settings: &Settings, focused: bool) -> Element<'_, Messag
             .align_x(Horizontal::Right)
             .align_y(Vertical::Center),
     ];
-    let center = center(&settings.save_path);
+    let hr: Container<'_, Message> = container("")
+        .height(2)
+        .width(Fill)
+        .style(|theme: &Theme| {
+            let palette = theme.extended_palette();
+            let gradient = LinearGradient::new(90)
+                .add_stop(0.0, Color::TRANSPARENT)
+                .add_stop(0.5, palette.background.strong.color)
+                .add_stop(1.0, Color::TRANSPARENT);
+
+            container::Style {
+                background: Some(gradient.into()),
+                ..Default::default()
+            }
+        })
+        .into();
+    let center = center(&settings);
 
     let main_screen_content = container(
         column![
             top,
+            Space::new().height(20),
+            hr,
+            Space::new().height(40),
             center,
         ]
     )
@@ -116,7 +132,7 @@ pub fn settings_screen(settings: &Settings, focused: bool) -> Element<'_, Messag
 }
 
 
-fn center(save_path: &PathBuf) -> Element<'_, Message> {
+fn center(settings: &Settings) -> Element<'_, Message> {
     column![
         row![
             text("Save folder").size(20),
@@ -129,7 +145,29 @@ fn center(save_path: &PathBuf) -> Element<'_, Message> {
                         _ => button::Style::default().with_background(palette.background.strong.color),
                     }
                 }),
-            text( format!("current folder: {}", save_path.to_string_lossy().into_owned()) )
-        ]
+            text( format!("current folder: {}", settings.save_path.to_string_lossy().into_owned()) )
+        ],
+        row![
+            text( format!("Image opacity: {:.1}", settings.image_opacity) )
+        ],
+        row![
+            text( format!("Image scale minimum: {:.3}", settings.image_min_scale) )
+        ],
+        row![
+            text( format!("Image scale maximum: {:.3}", settings.image_max_scale) )
+        ],
+        row![
+            text( format!("Image scale step: {:.2}", settings.image_scale_step) )
+        ],
+
+        button( text("Save settings").color(Color::WHITE) )
+            .on_press(Message::SaveSettings)
+            .style(|theme: &Theme, status| {
+                let palette = theme.extended_palette();
+                match status {
+                    button::Status::Active => { button::Style::default().with_background(palette.background.stronger.color) }
+                    _ => button::Style::default().with_background(palette.background.strong.color),
+                }
+            }),
     ].into()
 }

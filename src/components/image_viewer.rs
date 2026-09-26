@@ -3,11 +3,12 @@
 // => moved scale and offset variable out of the element's inner scope
 
 //! Zoom and pan on an image.
+use iced::advanced::renderer::Quad;
 #[warn(unused)]
 use iced::border;
 use iced::advanced::image::{self, FilterMethod, Image};
 use iced::advanced::{Clipboard, Layout, layout, Shell, Widget, renderer};
-use iced::mouse;
+use iced::{Background, Color, mouse};
 use iced::advanced::widget::tree::{self, Tree};
 use iced::{ ContentFit, Element, Event, Length, Pixels, Point, Radians, Rectangle, Size, Vector };
 
@@ -320,6 +321,15 @@ where
 
         let render = |renderer: &mut Renderer| {
             renderer.with_translation(translation, |renderer| {
+                // Draw a black background as an underlay for the image
+                renderer.fill_quad(
+                    Quad {
+                        bounds: drawing_bounds,
+                        ..Default::default()
+                    },
+                    Color::from_rgb(0.0, 0.0, 0.0)
+                );
+                // Draw the image
                 renderer.draw_image(
                     Image {
                         handle: self.handle.clone(),

@@ -7,7 +7,7 @@ use iced::widget::image as iced_image;
 
 use rfd::MessageButtons::OkCancel;
 use wreq::Client;
-use crate::sites::{self, NekosResponse, Rule34Response, Sites};
+use crate::{ResultToString, sites::{self, NekosResponse, Rule34Response, Sites}};
 
 static API_URLS: &[(&str, &str)] = &[
     ("rule34", "https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1"),
@@ -72,21 +72,21 @@ impl Fetcher {
                     let client_ref = &client;
                     let result = async move {
                         // get the response
-                        let response = client_ref.get(job.url.as_str()).send().await.map_err(|e| e.to_string())?;
+                        let response = client_ref.get(job.url.as_str()).send().await.err_to_string()?;
                         if !response.status().is_success() {
                             return Err(format!("HTTP Error: {}", response.status()));
                         }
                         // decide what to do with the response
                         match job.fetch_type {
                             FetchRequestType::Image => {
-                                let bytes = response.bytes().await.map_err(|e| e.to_string())?;
+                                let bytes = response.bytes().await.err_to_string()?;
                                 Ok(FetchResponse::Image(bytes))
                             }
                             FetchRequestType::Posts(site) => {
                                 // get the needed parts of the response for each site
                                 match site {
                                     Sites::Nekos => {
-                                        let nekos_response = response.json::<NekosResponse>().await.map_err(|e| e.to_string())?;
+                                        let nekos_response = response.json::<NekosResponse>().await.err_to_string()?;
                                         let result = nekos_response.images.into_iter()
                                             .map( |nekos_post|
                                                 PostResponse {
@@ -173,7 +173,7 @@ impl Fetcher {
                 info!("Sample URL: {}", sample_url);
                 let bytes = self.fetch_image_link(sample_url).await?;
                 let image_vec = bytes.to_vec();
-                let size = imagesize::blob_size(&image_vec).map_err(|e| e.to_string())?;
+                let size = imagesize::blob_size(&image_vec).err_to_string()?;
                 Ok((image_vec, size.width, size.height))
             },
             Err(err) => Err(err)
@@ -208,7 +208,7 @@ impl Fetcher {
         let url = posts[0].image_url.clone();
         let bytes = self.fetch_image_link(url).await?;
         let image_vec = bytes.to_vec();
-        let size = imagesize::blob_size(&image_vec).map_err(|e| e.to_string())?;
+        let size = imagesize::blob_size(&image_vec).err_to_string()?;
         Ok((image_vec, size.width, size.height))
     }
 

@@ -23,7 +23,7 @@ pub fn view(appstate: &App) -> Element<'_, Message> {
         else {
             stack!(
                 main_screen,
-                settings_screen(&appdata.settings, appdata.in_settings)
+                settings_screen(&appdata.settings, appdata.states.settings_menu_focused)
             ).into()
         }
 
