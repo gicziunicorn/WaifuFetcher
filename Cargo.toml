@@ -1,5 +1,11 @@
 # cargo-features = ["codegen-backend"]
 
+# [unstable]
+# codegen-backend = true
+
+# [profile.dev]
+# codegen-backend = "cranelift"
+
 [package]
 name = "WaifuFetcher"
 version = "0.1.0"
@@ -28,8 +34,3 @@ strum = "0.28.0"
 wreq = { version = "0.16.1", features = ["json"] }
 tokio = "1.53.3"
 
-# [unstable]
-# codegen-backend = true
-
-# [profile.dev]
-# codegen-backend = "cranelift"
