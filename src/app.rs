@@ -10,17 +10,17 @@ use iced::keyboard::{
 };
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
+use waifu_api::fetcher::Fetcher;
 use std::fs;
 use std::path::PathBuf;
 use std::time::Instant;
 use dirs::{home_dir, picture_dir};
 use rfd::AsyncFileDialog;
+use waifu_api::site::{Site, Sites};
 use crate::ResultToString;
 use crate::config::Config;
-use crate::fetcher::{FetchRequest,  Fetcher};
-use crate::components::dropdown::{DropdownAction, DropdownItem};
+use crate::components::dropdown::{DropdownAction};
 use crate::gui::view;
-use crate::sites::Sites;
 
 
 // Messages that the application uses to notify itself and handle tasks.
@@ -29,7 +29,7 @@ pub enum Message {
     Test(String),
     OpenFileDialog,
     FileSelected(Result<PathBuf, String>),
-    DownloadedImage( Result<(DynamicImage, Handle, usize, usize), String> ),
+    DownloadedImage( Result<(DynamicImage, Handle), String>, Site ),
     Error( String ),
     DropdownChanged(DropdownAction<Sites>),
     FetchImage,
@@ -78,6 +78,7 @@ pub struct Settings {
     pub image_min_scale: f32,
     pub image_max_scale: f32,
     pub image_opacity: f32,
+    pub auto_fetch: bool,
 }
 impl Default for Settings {
     fn default() -> Self {
@@ -92,20 +93,19 @@ impl Default for Settings {
             image_min_scale: 0.25,
             image_max_scale: 10.0,
             image_opacity: 1.0,
+            auto_fetch: false,
         }
     }
 }
 
 
 pub struct AppData {
-    pub sites: Vec<DropdownItem<Sites>>,
-    pub choice: Option<Sites>,
+    pub sites: Sites,
+    pub current_site: Option<Site>,
     pub sample_url: &'static str,
     pub file_url: &'static str,
     pub image: Option<DynamicImage>,
     pub image_handle: Option<Handle>,
-    pub width: f32,
-    pub height: f32,
     pub zoom: f32,
     pub tags: &'static str,
     pub settings: Settings,
@@ -114,25 +114,13 @@ pub struct AppData {
 }
 impl Default for AppData {
     fn default() -> Self {
-        let sites = vec![
-            DropdownItem {
-                image_path: Sites::Rule34.image_path(),
-                value: Sites::Rule34,
-            },
-            DropdownItem {
-                image_path: Sites::Nekos.image_path(),
-                value: Sites::Nekos,
-            },
-        ];
         AppData {
-            sites: sites,
-            choice: None,
+            sites: Sites::NekosMoe,
+            current_site: None,
             sample_url: "",
             file_url: "",
             image: None,
             image_handle: None,
-            width: 0.0,
-            height: 0.0,
             zoom: 1.0,
             tags: "",
             settings: Settings::default(),
@@ -259,53 +247,55 @@ impl App {
                 }
             }
             Message::FetchImage => {
-                info!("Fetching image...");
-                self.timer = Instant::now();
+                if let Some(appdata) = &mut self.appdata &&
+                let Some(current_site) = &appdata.current_site {
+                    info!("Fetching image...");
+                    self.timer = Instant::now();
 
-                let appdata = self.appdata.as_ref().unwrap();
-                let data = FetchRequest {
-                    url: Sites::Nekos.url(), //appdata.choice.unwrap().url(),
-                    tags: appdata.tags,
-                    limit: "1",
-                    api_key: "7d09b9790e4bcf4eecc22c63052cdb3f9f4c00beab93b2932eb0beb32b70d907b23c63210ae7cd33314c55376643ca5f88794777a0828ce77b0b0459836bc5e3",
-                    user_id: "4600302",
-                };
-                let fetcher_clone = self.fetcher.clone();
-                Task::perform(
-                    async move { fetcher_clone.fetch_site(data, Sites::Nekos).await },
-                    |result| {
-                        match result {
-                            Ok((image_vec, width, height)) => {
-                                let handle = Handle::from_bytes(image_vec.clone());
-                                let image = image::load_from_memory(&image_vec);
-                                match image {
-                                    Ok(img) => Message::DownloadedImage(Ok((img, handle, width, height))),
-                                    Err(err) => Message::Error(err.to_string())
+                    let mut site = current_site.clone();
+
+                    Task::perform(
+                        async move {
+                            let result = site.get_random_image().await;
+                            (result, site) // return the site, since its fields could've been modified
+                        },
+                        |(bytes, site)| {
+                            let result = match bytes {
+                                Ok((b)) => {
+                                    let handle = Handle::from_bytes(b.clone());
+                                    let image = image::load_from_memory(&b);
+                                    match image {
+                                        Ok(img) => Ok((img, handle)),
+                                        Err(err) => Err(err.to_string())
+                                    }
                                 }
-                            }
-                            Err(err) => {
-                                Message::Error(err)
-                            }
+                                Err(err) => {
+                                    Err(err.to_string())
+                                }
+                            };
+                            Message::DownloadedImage(result, site)
                         }
-                    }
-                )
+                    )
+                }
+                else { Task::none() }
             }
-            Message::DownloadedImage(result) => {
-                match result {
-                    Ok((image, handle, width, height)) => {
-                        if let Some(appdata) = self.appdata.as_mut() {
+            Message::DownloadedImage(result, site) => {
+                if let Some(appdata) = &mut self.appdata {
+                    appdata.current_site = Some(site);
+
+                    match result {
+                        Ok((image, handle)) => {
                             appdata.image = Some(image);
                             appdata.image_handle = Some(handle);
-                            appdata.width = width as f32;
-                            appdata.height = height as f32;
+                            info!("Set image handle");
+                            Task::done(Message::PauseTimer)
                         }
-                        info!("Set image handle");
-                        Task::done(Message::PauseTimer)
-                    }
-                    Err(err) => {
-                        Task::done(Message::Error(err))
+                        Err(err) => {
+                            Task::done(Message::Error(err))
+                        }
                     }
                 }
+                else { Task::none() }
             }
             Message::Error(err) => {
                 error!("Error: {}", err);
@@ -315,15 +305,17 @@ impl App {
             }
             Message::DropdownChanged(action) => {
                 info!("Site changed");
-                let appdata = self.appdata.as_mut().unwrap();
-                match action {
-                    DropdownAction::Toggle(open_state) => {
-                        appdata.states.dropdown_open = open_state;
-                    }
-                    DropdownAction::Select(chosen_value) => {
-                        appdata.choice = Some(chosen_value.clone());
-                        appdata.states.dropdown_open = false;
-                        info!("user choice: {:?}", chosen_value);
+                if let Some(appdata) = &mut self.appdata {
+                    match action {
+                        DropdownAction::Toggle(open_state) => {
+                            appdata.states.dropdown_open = open_state;
+                        }
+                        DropdownAction::Select(chosen_value) => {
+                            let site = chosen_value.site(self.fetcher.clone());
+                            appdata.current_site = Some(site);
+                            appdata.states.dropdown_open = false;
+                            info!("user choice: {:?}", chosen_value);
+                        }
                     }
                 }
                 Task::none()

@@ -1,8 +1,9 @@
 #![allow(unused)]
+#![warn(unused_extern_crates)]
 mod app;
 mod config;
-mod fetcher;
-mod sites;
+// mod fetcher;
+// mod sites;
 pub mod gui;
 pub mod components;
 
@@ -12,18 +13,18 @@ use iced::Theme;
 use time::{UtcOffset, format_description, macros::format_description as timefmt};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{EnvFilter, Layer, fmt::{self, time::{OffsetTime, time}}, layer::SubscriberExt, util::SubscriberInitExt};
+use waifu_api::{fetcher::Fetcher, site::Sites};
 use wreq::Client;
-use wreq_util::Emulation;
 use log::{debug, error, info, warn};
 
 use app::App;
-use fetcher::Fetcher;
 
 
 static APP_NAME: &str = "WaifuFetcher";
 
-static API_KEY: &str = "7d09b9790e4bcf4eecc22c63052cdb3f9f4c00beab93b2932eb0beb32b70d907b23c63210ae7cd33314c55376643ca5f88794777a0828ce77b0b0459836bc5e3";
-static USER_ID: &str = "4600302";
+// Create a user agent that can be sent to the API.
+// Most sites require or at least recommend this.
+static APP_USER_AGENT: &str = "WaifuFetcher (https://github.com/gicziunicorn/WaifuFetcher)";
 
 
 // Make converting errors to String easier
@@ -33,6 +34,16 @@ trait ResultToString<T> {
 impl<T, E: std::fmt::Display> ResultToString<T> for Result<T, E> {
     fn err_to_string(self) -> Result<T, String> {
         self.map_err(|e| e.to_string())
+    }
+}
+
+trait ImagePath<T> {
+    fn image_path(&self) -> String;
+}
+impl<T, S: ToString> ImagePath<T> for S {
+    fn image_path(&self) -> String {
+        // Nekos.moe -> nekos-moe
+        format!("{}.ico", self.to_string().to_lowercase())
     }
 }
 
@@ -89,7 +100,7 @@ fn try_main() -> Result<(), String> {
         .with(stdout_layer)
         .with(file_layer)
         .init();
-    //---
+    //------------------------------------------------
 
     info!("Log file for {}\n", APP_NAME);
 
@@ -98,11 +109,11 @@ fn try_main() -> Result<(), String> {
 
     let client = Client::builder()
         .local_addresses(Ipv4Addr::UNSPECIFIED, None) // disable ipv6 (i guess)
-        .emulation(Emulation::Chrome137)
+        .user_agent(APP_USER_AGENT)
         .build()
         .err_to_string()?;
 
-    let fetcher = Fetcher::new(client.clone());
+    let fetcher = Fetcher::new(client);
 
     // start the iced application
     iced::application(

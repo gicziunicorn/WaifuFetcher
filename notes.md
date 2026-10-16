@@ -19,5 +19,17 @@ To fix:
  - move the full State out of the image viewer, so it won't cause bugs on rerender
  - app is for sure not responsive
  - do something with floats (before saving to file)   0.3999999999999999999 haha
- - could use anyhow ig (though I don't see it as important)
+ - could use anyhow ig (though I don't see it as important) (now I do)
  - show local images
+ - disable the fetching button if a fetch is already in progress
+
+
+Ideas:
+ - see which website api is online
+ - log level option in config
+
+
+Sites:
+ - Nekos.best
+ - Danbooru
+ - Waifu.im

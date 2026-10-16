@@ -1,42 +1,43 @@
+use std::slice::Iter;
 use iced::widget::container::Style;
 use iced::widget::{Container, Scrollable, button, column, container, image, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme};
 use iced_aw::widget::drop_down::DropDown;
+use strum::IntoEnumIterator;
+use waifu_api::site::Sites;
 
-#[derive(Debug, Clone)]
-pub struct DropdownItem<T> {
-    pub value: T,
-    pub image_path: &'static str,
-}
+use crate::ImagePath;
 
-/// The internal actions of the dropdown, fully managed here.
+
+/// The internal actions of the dropdown, that should be handled
 #[derive(Debug, Clone)]
 pub enum DropdownAction<T> {
     Toggle(bool),
     Select(T),
 }
 
-/// Purely functional view that handles its own open/close mapping internally
-pub fn image_dropdown<'a, Message, T>(
-    items: &'a [DropdownItem<T>],
-    selected_value: Option<&T>,
+/// Dropdown with images for each element
+pub fn image_dropdown<'a, Message, I>(
+    mut items: I,
+    selected_value: Option<&I::Item>,
     is_open: bool,
-    callback: impl Fn(DropdownAction<T>) -> Message + 'a,
+    callback: impl Fn(DropdownAction<I::Item>) -> Message + 'a,
     placeholder: &'a str,
 ) -> Element<'a, Message>
 where
-    T: Clone + PartialEq + 'static + std::fmt::Display,
+    I: Iterator,
+    I::Item: Clone + PartialEq + 'static + std::fmt::Display,
     Message: Clone + 'a,
 {
     // get the current value
-    let current_item = selected_value.and_then(|val| items.iter().find(|i| &i.value == val));
+    let current_item = selected_value.and_then(|val| items.find(|i| i == val));
 
     // the button & its content that triggers the dropdown
     let trigger_content = match current_item {
         Some(item) => column![
             row![
-                image(item.image_path).width(22).height(22),
-                text(format!("{}", item.value))
+                image( format!("assets/{}.ico", item.to_string().to_lowercase()) ).width(22).height(22),
+                text( format!("{}", item.to_string()) )
             ].align_y(Alignment::Center).spacing(10).width(Length::Shrink),
         ].align_x(Alignment::Center).width(Length::Fill),
         None => column![text(placeholder)].align_x(Alignment::Center),
@@ -68,11 +69,13 @@ where
     let mut menu_column = column![].width(Length::Fill);
 
     for item in items {
+        let image_path = format!("assets/{}.ico", item.to_string().to_lowercase());
+
         let option_btn = button(
             column![
                 row![
-                    image(item.image_path).width(22).height(22),
-                    text(format!("{}", item.value))
+                    image(image_path).width(22).height(22),
+                    text(format!("{}", item.to_string()))
                 ].align_y(Alignment::Center).spacing(10).width(Length::Shrink),
             ].align_x(Alignment::Center).width(Length::Fill)
         )
@@ -96,7 +99,7 @@ where
                 ..button::Style::default()
             }
         })
-        .on_press(callback(DropdownAction::Select(item.value.clone())));
+        .on_press(callback(DropdownAction::Select(item.clone())));
 
         menu_column = menu_column.push(option_btn);
     }

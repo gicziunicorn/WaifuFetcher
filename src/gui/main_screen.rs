@@ -1,10 +1,11 @@
 #![warn(unused)]
+use strum::IntoEnumIterator;
 use iced::Length::{self, Fill};
 use iced::{
     Alignment, Border, Color, Element, Theme,
     widget::{ Space, button, column, row, text, container, Container, stack, container::Style }
 };
-//use iced::widget::image::Viewer;
+use waifu_api::site::{Sites};
 use crate::components::image_viewer::Viewer;
 use crate::components::dropdown::image_dropdown;
 use crate::app::{AppData, Message};
@@ -44,7 +45,13 @@ pub fn navbar(appdata: &AppData) -> Element<'_, Message> {
             Space::new().width(Fill),
             text("Waifu Fetcher").color(Color::WHITE).size(26),
             Space::new().width(Fill),
-            image_dropdown(&appdata.sites, appdata.choice.as_ref(), appdata.states.dropdown_open, Message::DropdownChanged, "Select a site"),
+            image_dropdown(
+                Sites::iter(),
+                appdata.current_site.clone().map(Into::into).as_ref(),
+                appdata.states.dropdown_open,
+                Message::DropdownChanged,
+                "Select a site"
+            ),
             Space::new().width(10),
             button( text("Settings").color(Color::WHITE) )
                 .on_press(Message::ToggleSettings),
@@ -73,15 +80,10 @@ pub fn navbar(appdata: &AppData) -> Element<'_, Message> {
 
 pub fn picture_displayer(appdata: &AppData) -> Element<'_, Message> {
     if let Some(handle) = &appdata.image_handle {
-        let width = if appdata.settings.fill_screen { Length::Fill }
-                else { Length::Fixed(appdata.width) };
-        let height = if appdata.settings.fill_screen { Length::Fill }
-                else { Length::Fixed(appdata.height) };
-
         let image = Viewer::new(
             handle,
-            width,
-            height,
+            Fill,
+            Fill,
             appdata.states.zoom,
             appdata.states.image_offset,
             appdata.settings.image_opacity,
