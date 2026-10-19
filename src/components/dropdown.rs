@@ -13,19 +13,18 @@ pub enum DropdownAction<T> {
 
 /// Dropdown with images for each element
 pub fn image_dropdown<'a, Message, I>(
-    mut items: I,
-    selected_value: Option<&I::Item>,
+    mut items: Vec<I>,
+    selected_value: Option<I>,
     is_open: bool,
-    callback: impl Fn(DropdownAction<I::Item>) -> Message + 'a,
+    callback: impl Fn(DropdownAction<I>) -> Message + 'a,
     placeholder: &'a str,
 ) -> Element<'a, Message>
 where
-    I: Iterator,
-    I::Item: Clone + PartialEq + 'static + std::fmt::Display,
+    I: Clone + PartialEq + 'static + std::fmt::Display,
     Message: Clone + 'a,
 {
     // get the current value
-    let current_item = selected_value.and_then(|val| items.find(|i| i == val));
+    let current_item = selected_value.and_then(|val| items.iter().find(|i| *i == &val));
 
     // the button & its content that triggers the dropdown
     let trigger_content = match current_item {
@@ -63,7 +62,7 @@ where
     // the dropdown menu content
     let mut menu_column = column![].width(Length::Fill);
 
-    for item in items {
+    for item in &items {
         let image_path = format!("assets/{}.ico", item.to_string().to_lowercase());
 
         let option_btn = button(
@@ -116,5 +115,6 @@ where
         }
     });
 
+    println!("{}, {}", is_open, items.len());
     DropDown::new(trigger_button, menu_content, is_open).into()
 }

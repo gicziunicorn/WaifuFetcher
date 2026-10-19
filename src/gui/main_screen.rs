@@ -46,8 +46,8 @@ pub fn navbar(appdata: &AppData) -> Element<'_, Message> {
             text("Waifu Fetcher").color(Color::WHITE).size(26),
             Space::new().width(Fill),
             image_dropdown(
-                Sites::iter(),
-                appdata.current_site.clone().map(Into::into).as_ref(),
+                Sites::iter().collect(),
+                appdata.current_site.clone().map(Into::into),
                 appdata.states.dropdown_open,
                 Message::DropdownChanged,
                 "Select a site"
