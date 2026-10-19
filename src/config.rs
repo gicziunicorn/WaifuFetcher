@@ -1,58 +1,61 @@
-use std::{fmt::format, fs, path::PathBuf};
-use dirs::{home_dir, picture_dir, config_local_dir};
-use log::{debug, info};
-
-use crate::{APP_NAME, ResultToString, app::{AppData, Settings}};
+use std::{fs, path::PathBuf};
+use anyhow::{Context, Result};
+use dirs::{home_dir, config_local_dir};
+use tracing::{debug, info};
+use crate::{APP_NAME, app::Settings};
 
 /// Handles the app's configuration
+#[derive(Debug)]
 pub struct Config {
-    pub folder: PathBuf,
-    pub file: PathBuf,
+    pub folder_path: PathBuf,
+    pub file_path: PathBuf,
 }
 
 impl Config {
-    pub fn new() -> Result<Self, String> {
+    pub fn new() -> Result<Self> {
         // Try to get the local config directory
         let folder = config_local_dir()
             .or_else(home_dir)
-            .ok_or_else(|| "Failed to find a suitable folder for the config!".to_string())?;
+            .context("Failed to find a suitable folder for the config!")?;
 
         // Then get the file
         let file = folder
             .join(APP_NAME)
             .join("config.toml");
 
-        info!("The config file's path is set to {}", file.display());
+        debug!("The configuration file's path is set to {}", file.display());
 
         let config = Config {
-            folder,
-            file,
+            folder_path: folder,
+            file_path: file,
         };
         Ok(config)
     }
 
-    pub fn read_config(&self) -> Result<Settings, String> {
+    pub fn read_config(&self) -> Result<Settings> {
         // Read the file's content
-        let bytes = fs::read(&self.file)
-            .err_to_string()?;
-        info!("Read config from '{}'.", self.file.display());
+        let bytes = fs::read(&self.file_path)
+            .context("Failed to read file")?;
+        info!("Read configuration from '{}'.", self.file_path.display());
 
         // Then just deserialize it into the struct
-        toml::from_slice(&bytes).err_to_string()
+        let settings = toml::from_slice(&bytes)
+            .context("Failed to parse the configuration file's content")?;
+
+        Ok(settings)
     }
 
-    pub fn save_config(&self, settings: &Settings) -> Result<(), String> {
+    pub fn save_config(&self, settings: &Settings) -> Result<()> {
         let toml = toml::to_string_pretty(settings)
-            .map_err(|e| format!("Couldn't create toml data from settings: {}", e.to_string()) )?;
+            .context("Failed to parse settings into string")?;
 
-        debug!("Toml data:\n{}", toml);
+        debug!("Parsed settings into toml:\n{}", toml);
 
-        fs::create_dir_all(&self.folder)
-            .err_to_string()?;
+        fs::create_dir_all(&self.folder_path)
+            .context("Failed to create directories for configuration file")?;
 
-        info!("File: {:?}", &self.file);
-        fs::write(&self.file, toml)
-            .err_to_string()?;
+        fs::write(&self.file_path, toml)
+            .context("Failed to write configuration to file")?;
 
         Ok(())
     }

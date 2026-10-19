@@ -8,15 +8,14 @@ use iced::advanced::renderer::Quad;
 use iced::border;
 use iced::advanced::image::{self, FilterMethod, Image};
 use iced::advanced::{Clipboard, Layout, layout, Shell, Widget, renderer};
-use iced::{Background, Color, mouse};
+use iced::{Color, mouse};
 use iced::advanced::widget::tree::{self, Tree};
-use iced::{ ContentFit, Element, Event, Length, Pixels, Point, Radians, Rectangle, Size, Vector };
+use iced::{ ContentFit, Element, Event, Length, Point, Radians, Rectangle, Size, Vector };
 
 
 
 /// A frame that displays an image with the ability to zoom in/out and pan.
 pub struct Viewer<'a, Handle, Message> {
-    padding: f32,
     width: Length,
     height: Length,
     offset: Vector,
@@ -51,7 +50,6 @@ impl<'a, Handle, Message> Viewer<'a, Handle, Message> {
     {
         Viewer {
             handle: handle.into(),
-            padding: 0.0,
             width: width.into(),
             height: height.into(),
             offset,
@@ -272,7 +270,7 @@ where
 
     fn draw(
         &self,
-        tree: &Tree,
+        _tree: &Tree,
         renderer: &mut Renderer,
         _theme: &Theme,
         _style: &renderer::Style,

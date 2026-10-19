@@ -137,7 +137,7 @@ fn center(settings: &Settings) -> Element<'_, Message> {
         row![
             text("Save folder").size(20),
             button( text("Folder").color(Color::WHITE) )
-                .on_press(Message::OpenFileDialog)
+                .on_press(Message::PickFolder)
                 .style(|theme: &Theme, status| {
                     let palette = theme.extended_palette();
                     match status {

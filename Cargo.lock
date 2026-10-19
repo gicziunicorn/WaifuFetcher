@@ -6,7 +6,9 @@ version = 4
 name = "WaifuFetcher"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "bytes",
+ "chrono",
  "dirs",
  "iced",
  "iced_aw",

@@ -8,6 +8,7 @@ features:
  - save the current image to the folder
  - the image viewer's state is now handled by the app, not reseting on rerender
  - logging to a file (info level) and to the console (warn level), and keeping two log files
+ - env log
 
  - keybind subscription function
  - timer for fetching
@@ -29,6 +30,7 @@ To fix:
 Ideas:
  - see which website api is online
  - log level option in config
+ - reverse dns lookup at the start
 
 
 Sites:

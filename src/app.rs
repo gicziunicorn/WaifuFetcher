@@ -1,6 +1,8 @@
 #![allow(unused)]
+use anyhow::{Context, Error, Result, anyhow, bail};
 use iced::Vector;
 use iced::{Element, Subscription, Task};
+use iced_fonts::bootstrap::advanced_text::file;
 use image::DynamicImage;
 use iced::widget::image::Handle;
 use iced::keyboard::{
@@ -8,8 +10,8 @@ use iced::keyboard::{
     key::{Named as NamedKeys},
     Event::KeyReleased
 };
-use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
+use tracing::{debug, info, warn};
 use waifu_api::fetcher::Fetcher;
 use std::fs;
 use std::path::PathBuf;
@@ -17,20 +19,19 @@ use std::time::Instant;
 use dirs::{home_dir, picture_dir};
 use rfd::AsyncFileDialog;
 use waifu_api::site::{Site, Sites};
-use crate::ResultToString;
 use crate::config::Config;
 use crate::components::dropdown::{DropdownAction};
+use crate::error;
 use crate::gui::view;
 
 
 // Messages that the application uses to notify itself and handle tasks.
 #[derive(Debug, Clone)]
 pub enum Message {
-    Test(String),
-    OpenFileDialog,
+    Error(String),
+    PickFolder,
     FileSelected(Result<PathBuf, String>),
     DownloadedImage( Result<(DynamicImage, Handle), String>, Site ),
-    Error( String ),
     DropdownChanged(DropdownAction<Sites>),
     FetchImage,
     PauseTimer,
@@ -99,6 +100,7 @@ impl Default for Settings {
 }
 
 
+#[derive(Debug)]
 pub struct AppData {
     pub sites: Sites,
     pub current_site: Option<Site>,
@@ -131,6 +133,7 @@ impl Default for AppData {
 }
 
 
+#[derive(Debug)]
 pub struct App {
     pub fetcher: Fetcher,
     pub appdata: Option<AppData>,
@@ -149,11 +152,11 @@ impl App {
                     else { Task::none() };
 
         // Initialize the config
-        let config: Option<Config> = match Config::new() {
+        let config = match Config::new() {
             Ok(val) => Some(val),
             Err(err) => {
-                error!("Error while loading config: \"{}\"", err);
-                error!("Using default config. Saving the settings to file will also be disabled.");
+                tracing::error!("Error while loading config: \"{}\"", err);
+                tracing::error!("Using default config. Saving the settings to file will also be disabled.");
                 None
             },
         };
@@ -162,31 +165,31 @@ impl App {
         let settings = if let Some(config) = &config {
             match config.read_config() {
                 Ok(settings) => {
-                    debug!("Read config: {:#?}", settings);
+                    debug!("Read config:\n{:#?}", settings);
                     settings
                 }
                 Err(err) => {
-                    error!("Error while parsing configuration file: \n'{}'", err);
-                    error!("Using default configuration.");
+                    tracing::error!("Error while parsing configuration file: \n'{}'", err);
+                    tracing::error!("Using default configuration.");
 
                     info!("Creating backup from current configuration and saving the default settings.");
-                    let bak_file = config.file.with_added_extension("bak");
+                    let bak_file = config.file_path.with_added_extension("bak");
 
                     let settings = Settings::default();
 
-                    let copy_result = fs::copy(&config.file, &bak_file);
+                    let copy_result = fs::copy(&config.file_path, &bak_file);
                     if copy_result.is_ok() {
                         let file_name = bak_file.file_name().map(|v| v.to_string_lossy().into_owned()).unwrap_or("{Failed to get file name}".to_string());
                         info!("Backed up the previous configuration as '{}'.", file_name);
                         // Save the default config
                         match config.save_config(&settings) {
-                            Err(err) => { error!("Failed to overwrite previous configuration: {}", err); }
+                            Err(err) => { tracing::error!("Failed to overwrite previous configuration: {}", err); }
                             _ => { info!("Successfully overwrote previous configuration.") }
                         }
                     }
                     else {
-                        error!("Failed to create backup: {}", copy_result.err().unwrap().to_string());
-                        error!("The configuration will not be overwritten. Save the settings if you want to reset it.");
+                        tracing::error!("Failed to create backup: {}", copy_result.err().unwrap().to_string());
+                        tracing::error!("The configuration will not be overwritten. Save the settings if you want to reset it.");
                     }
 
                     settings
@@ -213,11 +216,15 @@ impl App {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Test(msg) => {
-                info!("Received message: {}", msg);
+            // Handles errors
+            Message::Error(err) => {
+                tracing::error!(err);
+                self.error = Some(err);
                 Task::none()
-            }
-            Message::OpenFileDialog => {
+            },
+            // Pick a folder
+            Message::PickFolder => {
+                debug!("Launching file picker");
                 Task::perform(
                     async {
                         AsyncFileDialog::new()
@@ -225,55 +232,58 @@ impl App {
                             .await
                     },
                     |file_handle| {
-                        let result = file_handle
-                            .ok_or_else(|| String::from("Failed to get file handle for the path."))
-                            .and_then(|handle| {
-                                Ok(handle.path().to_owned())
-                            });
+                        let result = file_handle.ok_or(String::from("No folder path received from the filepicker."))
+                            .map(|f| f.path().to_owned());
                         Message::FileSelected(result)
                     }
                 )
             }
-            Message::FileSelected(value) => {
-                match value {
-                    Ok(path) => {
-                        println!("Path selected: {}", path.to_string_lossy().into_owned());
-                        if let Some(appdata) = &mut self.appdata {
-                            appdata.settings.save_path = path;
-                        }
-                        Task::none()
-                    },
-                    Err(e) => Task::done(Message::Error(e)),
+            Message::FileSelected(Ok(path)) => {
+                println!("Path selected: {}", path.to_string_lossy().into_owned());
+                if let Some(appdata) = &mut self.appdata {
+                    appdata.settings.save_path = path;
                 }
+                Task::none()
             }
+            Message::FileSelected(Err(err)) => {
+                tracing::error!(err);
+                self.error = Some(err);
+                Task::none()
+            }
+            // Fetch an image
             Message::FetchImage => {
                 if let Some(appdata) = &mut self.appdata &&
                 let Some(current_site) = &appdata.current_site {
                     info!("Fetching image...");
-                    self.timer = Instant::now();
+                    let timer = Instant::now();
 
                     let mut site = current_site.clone();
 
                     Task::perform(
                         async move {
                             let result = site.get_random_image().await;
+                            debug!("Got image in: {:.2}s", timer.elapsed().as_secs_f32());
+
                             (result, site) // return the site, since its fields could've been modified
                         },
                         |(bytes, site)| {
-                            let result = match bytes {
-                                Ok((b)) => {
+                            let result = bytes.context("Image fetching failed!")
+                                .and_then(|b| {
                                     let handle = Handle::from_bytes(b.clone());
-                                    let image = image::load_from_memory(&b);
-                                    match image {
-                                        Ok(img) => Ok((img, handle)),
-                                        Err(err) => Err(err.to_string())
-                                    }
-                                }
-                                Err(err) => {
-                                    Err(err.to_string())
-                                }
-                            };
-                            Message::DownloadedImage(result, site)
+                                    let image = image::load_from_memory(&b)
+                                        .context("Failed to load image")?;
+
+                                    fs::remove_file("/home/dani/kukacosszilva/a.txt").context("Error happened")?;
+
+                                    Ok((image, handle))
+                                });
+
+                            let final_result = result.map_err(|err| {
+                                error!(&err);
+                                format!("{err}")
+                            });
+
+                            Message::DownloadedImage(final_result, site)
                         }
                     )
                 }
@@ -296,12 +306,6 @@ impl App {
                     }
                 }
                 else { Task::none() }
-            }
-            Message::Error(err) => {
-                error!("Error: {}", err);
-                self.error = Some(err);
-                self.appdata = None;
-                Task::none()
             }
             Message::DropdownChanged(action) => {
                 info!("Site changed");
@@ -346,10 +350,10 @@ impl App {
                             tokio::task::spawn_blocking(move || {
                                 image_copy.save(&path)
                                     .map(|_| path.to_string_lossy().into_owned()) // return the path
-                                    .err_to_string()
+                                    .map_err(|e| e.to_string())
                             })
                             .await
-                            .err_to_string()?
+                            .map_err(|e| e.to_string())?
                         },
                         Message::SaveCompleted,
                     )
@@ -427,7 +431,7 @@ impl App {
                 if let Some(config) = &self.config
                 && let Some(appdata) = &self.appdata {
                     match config.save_config(&appdata.settings) {
-                        Err(err) => { error!("Failed to save current configuration: {}", err); }
+                        Err(err) => { tracing::error!("Failed to save current configuration: {}", err); }
                         _ => { info!("Saved current configuration.") }
                     }
                 }

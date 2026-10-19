@@ -1,12 +1,7 @@
-use std::slice::Iter;
 use iced::widget::container::Style;
-use iced::widget::{Container, Scrollable, button, column, container, image, row, text};
+use iced::widget::{Scrollable, button, column, container, image, row, text};
 use iced::{Alignment, Border, Color, Element, Length, Theme};
 use iced_aw::widget::drop_down::DropDown;
-use strum::IntoEnumIterator;
-use waifu_api::site::Sites;
-
-use crate::ImagePath;
 
 
 /// The internal actions of the dropdown, that should be handled
