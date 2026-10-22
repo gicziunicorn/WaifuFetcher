@@ -7,7 +7,7 @@ mod logger;
 pub mod gui;
 pub mod components;
 
-use anyhow::{Result, Error};
+use anyhow::{Context, Error, Result};
 use app::App;
 use std::net::Ipv4Addr;
 use iced::Theme;
@@ -35,12 +35,39 @@ static APP_USER_AGENT: &str = "WaifuFetcher (https://github.com/gicziunicorn/Wai
 //     }
 // }
 
+//-- Make errors easily loggable --
+/// Shared methods for error values
+trait ErrorDetails {
+    fn error_msg(&self) -> String;
+    fn source_msg(&self) -> String;
+}
+
+// implement the trait for errors
+impl ErrorDetails for anyhow::Error {
+    fn error_msg(&self) -> String {
+        self.to_string()
+    }
+    fn source_msg(&self) -> String {
+        self.source().map(|e| e.to_string()).unwrap_or(String::from(""))
+    }
+}
+
+impl ErrorDetails for str {
+    fn error_msg(&self) -> String {
+        self.to_string()
+    }
+    fn source_msg(&self) -> String {
+        String::from("")
+    }
+}
+
 /// Pass errors to the logging function easily
 #[macro_export]
 macro_rules! error {
     ($err:expr) => {{
         let err = $err;
-        let source = err.source().map(|e| e.to_string()).unwrap_or_default();
+        let error_msg = err.error_msg();
+        let source = err.source_msg();
         tracing::error!(%err, cause = source);
     }};
 }
@@ -48,13 +75,15 @@ macro_rules! error {
 
 
 fn main() -> Result<()> {
-    let _guard = setup_logger()?;
+    let _guard = setup_logger()
+        .context("Failed to set up logger.")?;
     info!("Logger set up successfully");
 
     let client = Client::builder()
         .local_addresses(Ipv4Addr::UNSPECIFIED, None) // disable ipv6 (i guess)
         .user_agent(APP_USER_AGENT)
-        .build()?;
+        .build()
+        .context("Building the client failed")?;
 
     let fetcher = Fetcher::new(client);
 
@@ -68,7 +97,8 @@ fn main() -> Result<()> {
     .theme(Theme::KanagawaDragon)
     .font(iced_fonts::BOOTSTRAP_FONT_BYTES)
     .subscription(App::subscription)
-    .run()?;
+    .run()
+    .context("Failed to run the iced application")?;
 
     Ok(())
 }

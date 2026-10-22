@@ -7,7 +7,9 @@ use iced_aw::widget::drop_down::DropDown;
 /// The internal actions of the dropdown, that should be handled
 #[derive(Debug, Clone)]
 pub enum DropdownAction<T> {
+    /// Toggle the state of the dropdown
     Toggle(bool),
+    /// An element of the dropdown was selected
     Select(T),
 }
 
@@ -115,6 +117,5 @@ where
         }
     });
 
-    println!("{}, {}", is_open, items.len());
     DropDown::new(trigger_button, menu_content, is_open).into()
 }

@@ -82,8 +82,9 @@ impl<'a> Visit for CustomVisitor<'a> {
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         let debug_str = format!("{value:?}");
         let formatted = debug_str.strip_circumfix("\"", "\"").unwrap_or(&debug_str);
-        let mut lines = formatted.lines();
+        if formatted == "" { return; }
 
+        let mut lines = formatted.lines();
         let mut message = lines.next().unwrap_or_default().to_string();
         for line in lines {
             if self.ansi {

@@ -21,7 +21,7 @@ use rfd::AsyncFileDialog;
 use waifu_api::site::{Site, Sites};
 use crate::config::Config;
 use crate::components::dropdown::{DropdownAction};
-use crate::error;
+use crate::{ErrorDetails, error};
 use crate::gui::view;
 
 
@@ -31,11 +31,15 @@ pub enum Message {
     Error(String),
     PickFolder,
     FileSelected(Result<PathBuf, String>),
-    DownloadedImage( Result<(DynamicImage, Handle), String>, Site ),
-    DropdownChanged(DropdownAction<Sites>),
+    /// Fetch an image
     FetchImage,
-    PauseTimer,
+    /// Handle things after the image was fetched
+    FetchedImage( Result<(DynamicImage, Handle), String>, Site ),
+    // Handle actions from the site chooser dropdown
+    DropdownChanged(DropdownAction<Sites>),
+    /// Toggle the settings menu
     ToggleSettings,
+
     SaveImage,
     SaveCompleted(Result<String, String>),
     KeyPressed(Key),
@@ -139,7 +143,6 @@ pub struct App {
     pub appdata: Option<AppData>,
     pub config: Option<Config>,
     pub error: Option<String>,
-    timer: Instant,
 }
 
 
@@ -209,7 +212,6 @@ impl App {
             appdata: Some(appdata),
             config,
             error: None,
-            timer: Instant::now(),
         },
         task)
     }
@@ -218,7 +220,7 @@ impl App {
         match message {
             // Handles errors
             Message::Error(err) => {
-                tracing::error!(err);
+                error!(&err);
                 self.error = Some(err);
                 Task::none()
             },
@@ -246,69 +248,11 @@ impl App {
                 Task::none()
             }
             Message::FileSelected(Err(err)) => {
-                tracing::error!(err);
-                self.error = Some(err);
+                error!(err);
                 Task::none()
             }
-            // Fetch an image
-            Message::FetchImage => {
-                if let Some(appdata) = &mut self.appdata &&
-                let Some(current_site) = &appdata.current_site {
-                    info!("Fetching image...");
-                    let timer = Instant::now();
-
-                    let mut site = current_site.clone();
-
-                    Task::perform(
-                        async move {
-                            let result = site.get_random_image().await;
-                            debug!("Got image in: {:.2}s", timer.elapsed().as_secs_f32());
-
-                            (result, site) // return the site, since its fields could've been modified
-                        },
-                        |(bytes, site)| {
-                            let result = bytes.context("Image fetching failed!")
-                                .and_then(|b| {
-                                    let handle = Handle::from_bytes(b.clone());
-                                    let image = image::load_from_memory(&b)
-                                        .context("Failed to load image")?;
-
-                                    fs::remove_file("/home/dani/kukacosszilva/a.txt").context("Error happened")?;
-
-                                    Ok((image, handle))
-                                });
-
-                            let final_result = result.map_err(|err| {
-                                error!(&err);
-                                format!("{err}")
-                            });
-
-                            Message::DownloadedImage(final_result, site)
-                        }
-                    )
-                }
-                else { Task::none() }
-            }
-            Message::DownloadedImage(result, site) => {
-                if let Some(appdata) = &mut self.appdata {
-                    appdata.current_site = Some(site);
-
-                    match result {
-                        Ok((image, handle)) => {
-                            appdata.image = Some(image);
-                            appdata.image_handle = Some(handle);
-                            info!("Set image handle");
-                            Task::done(Message::PauseTimer)
-                        }
-                        Err(err) => {
-                            Task::done(Message::Error(err))
-                        }
-                    }
-                }
-                else { Task::none() }
-            }
+            // Handle actions from the site chooser dropdown
             Message::DropdownChanged(action) => {
-                info!("Site changed");
                 if let Some(appdata) = &mut self.appdata {
                     match action {
                         DropdownAction::Toggle(open_state) => {
@@ -318,20 +262,79 @@ impl App {
                             let site = chosen_value.site(self.fetcher.clone());
                             appdata.current_site = Some(site);
                             appdata.states.dropdown_open = false;
-                            info!("user choice: {:?}", chosen_value);
+                            debug!("Set site to: {:?}", chosen_value);
                         }
                     }
                 }
                 Task::none()
             }
-            // timer
-            Message::PauseTimer => {
-                let elapsed = self.timer.elapsed().as_secs_f32();
+            // Fetch an image
+            Message::FetchImage => {
+                if let Some(appdata) = &self.appdata &&
+                let Some(current_site) = &appdata.current_site {
+                    info!("Fetching image...");
+                    // Measure the time of fetching
+                    let mut timer = Instant::now();
 
-                info!("Time taken for fetching: {:.2}s", elapsed);
+                    let mut site = current_site.clone();
 
-                Task::none()
+                    Task::perform(
+                        async move {
+                            let result = site.get_random_image().await;
+
+                            debug!("Got image in: {:.2}s", timer.elapsed().as_secs_f32());
+
+                            (result, site) // return the site, since its fields could've been modified (like the ratelimits)
+                        },
+                        |(bytes, site)| {
+                            // Measure the time of parsing the image
+                            let timer = Instant::now();
+
+                            // Create an image handle and the dynamicimage from the bytes or get the error
+                            let result = bytes.context("Image fetching failed!")
+                                .and_then(|b| {
+                                    let handle = Handle::from_bytes(b.clone());
+                                    let image = image::load_from_memory(&b)
+                                        .context("Failed to load image")?;
+
+                                    Ok((image, handle))
+                                });
+
+                            debug!("Parsed image in: {:.2}s", timer.elapsed().as_secs_f32());
+
+                            // If any, log the full error, then only forward it's message (bc anyhow::Error isn't Clone)
+                            let final_result = result.map_err(|err| {
+                                error!(&err);
+                                format!("{err}")
+                            });
+
+                            // Have to forward the site too, because self can't be modified in this closure
+                            Message::FetchedImage(final_result, site)
+                        }
+                    )
+                }
+                else { Task::none() }
             }
+            Message::FetchedImage(result, site) => {
+                if let Some(appdata) = &mut self.appdata {
+                    // The site could've been modified
+                    appdata.current_site = Some(site);
+
+                    match result {
+                        Ok((image, handle)) => {
+                            appdata.image = Some(image);
+                            appdata.image_handle = Some(handle);
+                            Task::none()
+                        }
+                        Err(err) => {
+                            self.error = Some(err);
+                            Task::none()
+                        }
+                    }
+                }
+                else { Task::none() }
+            }
+            // Toggle the settings menu
             Message::ToggleSettings => {
                 if let Some(appdata) = &mut self.appdata {
                     appdata.in_settings = !appdata.in_settings;
@@ -339,6 +342,7 @@ impl App {
                 }
                 Task::none()
             }
+
             Message::SaveImage => {
                 if let Some(appdata) = self.appdata.as_ref()
                 && let Some(image) = appdata.image.as_ref() {

@@ -5,21 +5,25 @@ use iced::{
     Alignment, Border, Color, Element, Theme,
     widget::{ Space, button, column, row, text, container, Container, stack, container::Style }
 };
-use waifu_api::site::{Sites};
+use waifu_api::site::{Site, Sites};
+use crate::APP_NAME;
 use crate::components::image_viewer::Viewer;
 use crate::components::dropdown::image_dropdown;
 use crate::app::{AppData, Message};
 
 
 pub fn main_screen(appdata: &AppData) -> Element<'_, Message> {
-    //println!("rerendered");
     column!(
-        navbar(appdata),
+        navbar(
+            &appdata.current_site,
+            appdata.states.dropdown_open,
+        ),
         picture_displayer(appdata)
     ).into()
 }
 
-pub fn navbar(appdata: &AppData) -> Element<'_, Message> {
+pub fn navbar(current_site: &Option<Site>, dropdown_open: bool) -> Element<'_, Message> {
+    println!("rerendered");
     container(
         row![
             Space::new().width(20),
@@ -43,12 +47,12 @@ pub fn navbar(appdata: &AppData) -> Element<'_, Message> {
                     }
                 }),
             Space::new().width(Fill),
-            text("Waifu Fetcher").color(Color::WHITE).size(26),
+            text(APP_NAME).color(Color::WHITE).size(26),
             Space::new().width(Fill),
             image_dropdown(
                 Sites::iter().collect(),
-                appdata.current_site.clone().map(Into::into),
-                appdata.states.dropdown_open,
+                current_site.clone().map(Into::into),
+                dropdown_open,
                 Message::DropdownChanged,
                 "Select a site"
             ),
