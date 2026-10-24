@@ -39,7 +39,7 @@ static APP_USER_AGENT: &str = "WaifuFetcher (https://github.com/gicziunicorn/Wai
 /// Shared methods for error values
 trait ErrorDetails {
     fn error_msg(&self) -> String;
-    fn source_msg(&self) -> String;
+    fn causes(&self) -> Vec<String>;
 }
 
 // implement the trait for errors
@@ -47,8 +47,13 @@ impl ErrorDetails for anyhow::Error {
     fn error_msg(&self) -> String {
         self.to_string()
     }
-    fn source_msg(&self) -> String {
-        self.source().map(|e| e.to_string()).unwrap_or(String::from(""))
+
+    fn causes(&self) -> Vec<String> {
+        // Get the chain, skip the main error, and collect the causes (contexts) into a vec
+        self.chain()
+            .skip(1)
+            .map(|e| e.to_string())
+            .collect()
     }
 }
 
@@ -56,22 +61,27 @@ impl ErrorDetails for str {
     fn error_msg(&self) -> String {
         self.to_string()
     }
-    fn source_msg(&self) -> String {
-        String::from("")
+
+    fn causes(&self) -> Vec<String> {
+        Vec::new()
     }
 }
 
-/// Pass errors to the logging function easily
+/// Helper macro to pass arguments to tracing::error
 #[macro_export]
 macro_rules! error {
     ($err:expr) => {{
         let err = $err;
         let error_msg = err.error_msg();
-        let source = err.source_msg();
-        tracing::error!(%err, cause = source);
+        let causes = err.causes();
+
+        tracing::error!(
+            error = %error_msg,
+            causes = %causes.join("|"),
+        );
     }};
 }
-
+//----
 
 
 fn main() -> Result<()> {

@@ -98,11 +98,15 @@ impl<'a> Visit for CustomVisitor<'a> {
         match *self.level {
             Level::ERROR => {
                 // The "main" field
-                if field.name() == "err" || field.name() == "message" {
+                if field.name() == "error" {
                     write!(self.data, "{message}");
                 }
-                else if field.name() == "cause" {
-                    self.data.push_str(&format!("\n\t\tCaused by: {message}\n"));
+                else if field.name() == "causes" {
+                    let causes = message.split("|");
+                    for cause in causes {
+                        self.data.push_str(&format!("\n\t\tCaused by: {cause}"));
+                    }
+                    self.data.push_str("\n");
                 }
                 else {
                     self.data.push_str(&format!("\n\t\t{}: {message}", field.name()));

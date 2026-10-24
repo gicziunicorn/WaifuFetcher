@@ -145,7 +145,7 @@ fn center(settings: &Settings) -> Element<'_, Message> {
                         _ => button::Style::default().with_background(palette.background.strong.color),
                     }
                 }),
-            text( format!("current folder: {}", settings.save_path.to_string_lossy().into_owned()) )
+            text( format!("current folder: {}", settings.image_save_path.to_string_lossy().into_owned()) )
         ],
         row![
             text( format!("Image opacity: {:.1}", settings.image_opacity) )

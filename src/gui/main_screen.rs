@@ -1,4 +1,6 @@
 #![warn(unused)]
+use iced::widget::Column;
+use rand::{Rng, rng};
 use strum::IntoEnumIterator;
 use iced::Length::{self, Fill};
 use iced::{
@@ -9,7 +11,7 @@ use waifu_api::site::{Site, Sites};
 use crate::APP_NAME;
 use crate::components::image_viewer::Viewer;
 use crate::components::dropdown::image_dropdown;
-use crate::app::{AppData, Message};
+use crate::app::{AppData, Message, Notification};
 
 
 pub fn main_screen(appdata: &AppData) -> Element<'_, Message> {
@@ -18,12 +20,14 @@ pub fn main_screen(appdata: &AppData) -> Element<'_, Message> {
             &appdata.current_site,
             appdata.states.dropdown_open,
         ),
-        picture_displayer(appdata)
+        stack!(
+            picture_displayer(appdata),
+            notifications(&appdata.notifications)
+        ),
     ).into()
 }
 
 pub fn navbar(current_site: &Option<Site>, dropdown_open: bool) -> Element<'_, Message> {
-    println!("rerendered");
     container(
         row![
             Space::new().width(20),
@@ -39,6 +43,16 @@ pub fn navbar(current_site: &Option<Site>, dropdown_open: bool) -> Element<'_, M
             Space::new().width(20),
             button( text("Save image").color(Color::WHITE) )
                 .on_press(Message::SaveImage)
+                .style(|theme: &Theme, status| {
+                    let palette = theme.extended_palette();
+                    match status {
+                        button::Status::Active => { button::Style::default().with_background(palette.background.stronger.color) }
+                        _ => button::Style::default().with_background(palette.background.strong.color),
+                    }
+                }),
+            Space::new().width(20),
+            button( text("Error").color(Color::WHITE) )
+                .on_press(Message::Notify("Test error".to_string()))
                 .style(|theme: &Theme, status| {
                     let palette = theme.extended_palette();
                     match status {
@@ -83,9 +97,9 @@ pub fn navbar(current_site: &Option<Site>, dropdown_open: bool) -> Element<'_, M
 }
 
 pub fn picture_displayer(appdata: &AppData) -> Element<'_, Message> {
-    if let Some(handle) = &appdata.image_handle {
+    if let Some(image) = &appdata.image {
         let image = Viewer::new(
-            handle,
+            &image.handle,
             Fill,
             Fill,
             appdata.states.zoom,
@@ -119,4 +133,41 @@ pub fn picture_displayer(appdata: &AppData) -> Element<'_, Message> {
         .center_x(Fill).center_y(Fill)
         .into()
     }
+}
+
+pub fn notifications(notifications:&Vec<Notification>) -> Element<'_, Message> {
+    let notif_col = Column::new().extend(
+        notifications.iter().rev()
+            .map(|n| notification(n))
+    );
+
+    container(
+        notif_col.spacing(12)
+    )
+    .align_bottom(Fill)
+    .align_right(Fill)
+    .padding(30)
+    .into()
+}
+
+pub fn notification(notification: &Notification) -> Element<'_, Message> {
+    let r = rng().next_u32().to_string();
+    let msg = format!("{} - {r}", notification.message);
+    container(
+        text(msg)
+    )
+    .padding(15)
+    .style(|_| {
+        Style {
+            background: Some(Color::from_rgba8(0, 0, 0, 0.6).into()),
+            text_color: Some(Color::WHITE),
+            border: Border {
+                width: 0.0,
+                radius: 10.into(),
+                color: Color::BLACK,
+            },
+            ..Style::default()
+        }
+    })
+    .into()
 }
