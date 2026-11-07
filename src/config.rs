@@ -34,7 +34,8 @@ impl Config {
         // Read the file's content
         let bytes = fs::read(&self.file_path)
             .context("Failed to read file")?;
-        debug!("Read configuration from '{}'.", self.file_path.display());
+
+        info!("Read configuration from '{}'.", self.file_path.display());
 
         // Then deserialize it into the struct
         let settings = toml::from_slice(&bytes)

@@ -22,7 +22,7 @@ use std::{
 };
 use dirs::{home_dir, picture_dir};
 use rfd::AsyncFileDialog;
-use waifu_api::site::{Site, Sites};
+use waifu_api::sites::{Site, Sites};
 
 use crate::update::{self, Message};
 use crate::config::Config;
@@ -49,6 +49,7 @@ pub enum NotificationType {
 /// Information about the fetched image
 #[derive(Debug, Clone)]
 pub struct FetchedImage {
+    pub id: String,
     pub bytes: Bytes,
     pub handle: Handle,
     pub format: ImageFormat,
@@ -59,6 +60,7 @@ pub struct FetchedImage {
 // These aren't directly changeable from the settings.
 #[derive(Debug, Clone)]
 pub struct States {
+    pub disable_fetch: bool,
     pub dropdown_open: bool,
     pub settings_menu_focused: bool,
     pub zoom: f32,
@@ -68,6 +70,7 @@ pub struct States {
 impl Default for States {
     fn default() -> Self {
         let states = States {
+            disable_fetch: false,
             dropdown_open: false,
             settings_menu_focused: false,
             zoom: 1.0,

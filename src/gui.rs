@@ -17,6 +17,7 @@ use crate::update::Message;
 mod main_screen;
 mod settings_screen;
 mod notification;
+mod bottom_bar;
 
 
 /// The main view of the app

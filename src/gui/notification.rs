@@ -23,9 +23,10 @@ pub fn notifications(notifications:&Vec<Notification>) -> Element<'_, Message> {
 
 pub fn notification(notification: &Notification) -> Element<'_, Message> {
     container(
-        text(&notification.message)
+        text(&notification.message).wrapping(text::Wrapping::Glyph)
     )
     .padding(15)
+    .max_width(500)
     .style(|_| {
         ContainerStyle {
             background: Some(Color::from_rgba8(0, 0, 0, 0.6).into()),

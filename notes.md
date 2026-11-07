@@ -26,12 +26,20 @@ To fix:
  - show local images
  - disable the fetching button if a fetch is already in progress
 
+ - notify saving settings
+ - better input field style
+ - save images with different names
+
+ - better notifications on error (see update.rs:192)
+
 
 Ideas:
  - see which website api is online
  - log level option in config
  - reverse dns lookup at the start
  - group toggle action in Message
+ - make websites openable in a browser
+ - document shortcut
 
 
 Sites:

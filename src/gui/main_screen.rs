@@ -5,11 +5,12 @@ use iced::{
     Alignment, Border, Color, Element, Theme,
     widget::{ Space, button, column, row, text, container, container::Style }
 };
-use waifu_api::site::{Site, Sites};
+use waifu_api::sites::{Site, Sites};
 use crate::APP_NAME;
 use crate::components::image_viewer::Viewer;
 use crate::components::dropdown::image_dropdown;
 use crate::app::AppData;
+use crate::gui::bottom_bar::bottom_bar;
 use crate::update::{Interaction, Message};
 
 
@@ -18,17 +19,22 @@ pub fn main_screen(appdata: &AppData) -> Element<'_, Message> {
         navbar(
             &appdata.current_site,
             appdata.states.dropdown_open,
+            appdata.states.disable_fetch
         ),
-        picture_displayer(appdata)
+        picture_displayer(appdata),
+        bottom_bar(appdata),
     ).into()
 }
 
-pub fn navbar(current_site: &Option<Site>, dropdown_open: bool) -> Element<'_, Message> {
+pub fn navbar(current_site: &Option<Site>, dropdown_open: bool, disable_fetch: bool) -> Element<'_, Message> {
     container(
         row![
             Space::new().width(20),
             button( text("Fetch").color(Color::WHITE) )
-                .on_press(Message::FetchImage)
+                .on_press_maybe(match disable_fetch {
+                    false => Some(Message::FetchImage),
+                    true => None,
+                })
                 .style(|theme: &Theme, status| {
                     let palette = theme.extended_palette();
                     match status {
@@ -62,25 +68,25 @@ pub fn navbar(current_site: &Option<Site>, dropdown_open: bool) -> Element<'_, M
                 .on_press(Message::ToggleSettings),
             Space::new().width(20),
         ]
-            .width(Fill)
-            .align_y(Alignment::Center)
-    )
         .width(Fill)
-        .padding([20, 0])
-        .style(|theme: &Theme| {
-            let palette = theme.extended_palette();
-            Style {
-                background: Some(palette.background.weaker.color.into()),
-                text_color: Some(palette.background.weaker.text),
-                border: Border {
-                    width: 3.0,
-                    radius: 0.into(),
-                    color: palette.background.weak.color,
-                },
-                ..Style::default()
-            }
-        })
-        .into()
+        .align_y(Alignment::Center)
+    )
+    .width(Fill)
+    .padding([20, 0])
+    .style(|theme: &Theme| {
+        let palette = theme.extended_palette();
+        Style {
+            background: Some(palette.background.weaker.color.into()),
+            text_color: Some(palette.background.weaker.text),
+            border: Border {
+                width: 3.0,
+                radius: 0.into(),
+                color: palette.background.weak.color,
+            },
+            ..Style::default()
+        }
+    })
+    .into()
 }
 
 pub fn picture_displayer(appdata: &AppData) -> Element<'_, Message> {

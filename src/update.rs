@@ -14,7 +14,7 @@ use image::{ImageFormat, guess_format};
 use serde::{Deserialize, Serialize};
 use tokio::time::sleep;
 use tracing::{debug, info, warn};
-use waifu_api::fetcher::Fetcher;
+use waifu_api::{error::FetchResult, fetcher::Fetcher, sites::Post};
 use std::{
     fs,
     path::PathBuf,
@@ -22,7 +22,7 @@ use std::{
 };
 use dirs::{home_dir, picture_dir};
 use rfd::AsyncFileDialog;
-use waifu_api::site::{Site, Sites};
+use waifu_api::sites::{Site, Sites};
 
 use crate::{
     error, ErrorDetails,
@@ -141,30 +141,46 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
         // Fetch an image
         Message::FetchImage => {
             if let Some(current_site) = &appdata.current_site {
+                appdata.states.disable_fetch = true;
+
                 // Measure the time of fetching
                 let timer = Instant::now();
 
                 let mut site = current_site.clone();
+                let fetcher = app.fetcher.clone();
 
                 Task::perform(
                     async move {
-                        let result = site.get_random_image().await;
+                        // Fetch a post
+                        let res: FetchResult<Post> = site.get_random_posts(1).await
+                                                        .map(|mut posts| posts.remove(0))
+                                                        .map(Into::into);
+
+                        // If the post was fetched, fetch an image, else return the error
+                        let result: FetchResult<(Post, Bytes)> = match res {
+                            Ok(post) => {
+                                fetcher.fetch_image(&post.image_url).await
+                                    .map(|bytes| (post, bytes))
+                            },
+                            Err(e) => Err(e),
+                        };
 
                         debug!("Got image in: {:.2}s", timer.elapsed().as_secs_f32());
 
                         (result, site) // return the site, since its fields could've been modified (like the ratelimits)
                     },
-                    |(bytes, site)| {
+                    |(result, site)| {
                         // Create an image handle and the dynamicimage from the bytes or get the error
-                        let result = bytes.context("Failed to fetch image")
-                            .and_then(|b| {
-                                let handle = Handle::from_bytes(b.clone());
+                        let result = result.context("Failed to fetch image")
+                            .and_then(|(post, bytes)| {
+                                let handle = Handle::from_bytes(bytes.clone());
 
-                                let format = guess_format(&b)
+                                let format = guess_format(&bytes)
                                     .context("Failed to determine image format")?;
 
                                 let image = FetchedImage {
-                                    bytes: b,
+                                    id: post.id,
+                                    bytes,
                                     handle,
                                     format
                                 };
@@ -190,17 +206,18 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
         Message::FetchedImage(result, site) => {
             // The site could've been modified
             appdata.current_site = Some(site);
+            appdata.states.disable_fetch = false;
 
             match result {
                 Ok(fetched_image) => {
                     appdata.image = Some(fetched_image);
+                    Task::none()
                 }
                 Err(err) => {
-                    app.error = Some(err);
+                    Task::done(Message::Notify(err))
                 }
             }
 
-            Task::none()
         }
         // Toggle the settings menu
         Message::ToggleSettings => {
@@ -212,7 +229,7 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
         Message::SaveImage => {
             if let Some(image) = &appdata.image {
                 // Get the name and extension of the image from `ImageFormat` and construct the path
-                let name = "image";
+                let name = &image.id;
                 let ext = image.format.extensions_str()[0];
                 let path = appdata.settings.image_save_path.join(format!("{name}.{ext}"));
 
@@ -232,7 +249,7 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
                     |result| {
                         match result.flatten() {
                             Ok(path) => {
-                                let msg = format!("Saved image to {path}");
+                                let msg = format!("Saved image as {path}");
                                 Message::Notify(msg)
                             },
                             Err(err) => {
