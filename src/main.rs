@@ -6,6 +6,7 @@ mod config;
 mod logger;
 pub mod gui;
 pub mod components;
+mod update;
 
 use anyhow::{Context, Error, Result};
 use app::App;
@@ -77,7 +78,7 @@ macro_rules! error {
 
         tracing::error!(
             error = %error_msg,
-            causes = %causes.join("|"),
+            causes = %causes.join("|$|"),
         );
     }};
 }
@@ -105,6 +106,7 @@ fn main() -> Result<()> {
     )
     .title(APP_NAME)
     .theme(Theme::KanagawaDragon)
+    // Add the bootstrap font for icons
     .font(iced_fonts::BOOTSTRAP_FONT_BYTES)
     .subscription(App::subscription)
     .run()

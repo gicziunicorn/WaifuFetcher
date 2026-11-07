@@ -1,17 +1,16 @@
 #![warn(unused)]
-use iced::widget::Column;
-use rand::{Rng, rng};
 use strum::IntoEnumIterator;
-use iced::Length::{self, Fill};
+use iced::Length::Fill;
 use iced::{
     Alignment, Border, Color, Element, Theme,
-    widget::{ Space, button, column, row, text, container, Container, stack, container::Style }
+    widget::{ Space, button, column, row, text, container, container::Style }
 };
 use waifu_api::site::{Site, Sites};
 use crate::APP_NAME;
 use crate::components::image_viewer::Viewer;
 use crate::components::dropdown::image_dropdown;
-use crate::app::{AppData, Message, Notification};
+use crate::app::AppData;
+use crate::update::{Interaction, Message};
 
 
 pub fn main_screen(appdata: &AppData) -> Element<'_, Message> {
@@ -20,10 +19,7 @@ pub fn main_screen(appdata: &AppData) -> Element<'_, Message> {
             &appdata.current_site,
             appdata.states.dropdown_open,
         ),
-        stack!(
-            picture_displayer(appdata),
-            notifications(&appdata.notifications)
-        ),
+        picture_displayer(appdata)
     ).into()
 }
 
@@ -51,15 +47,6 @@ pub fn navbar(current_site: &Option<Site>, dropdown_open: bool) -> Element<'_, M
                     }
                 }),
             Space::new().width(20),
-            button( text("Error").color(Color::WHITE) )
-                .on_press(Message::Notify("Test error".to_string()))
-                .style(|theme: &Theme, status| {
-                    let palette = theme.extended_palette();
-                    match status {
-                        button::Status::Active => { button::Style::default().with_background(palette.background.stronger.color) }
-                        _ => button::Style::default().with_background(palette.background.strong.color),
-                    }
-                }),
             Space::new().width(Fill),
             text(APP_NAME).color(Color::WHITE).size(26),
             Space::new().width(Fill),
@@ -67,7 +54,7 @@ pub fn navbar(current_site: &Option<Site>, dropdown_open: bool) -> Element<'_, M
                 Sites::iter().collect(),
                 current_site.clone().map(Into::into),
                 dropdown_open,
-                Message::DropdownChanged,
+                |val| Message::Interaction(Interaction::SiteDropdown(val)),
                 "Select a site"
             ),
             Space::new().width(10),
@@ -98,7 +85,7 @@ pub fn navbar(current_site: &Option<Site>, dropdown_open: bool) -> Element<'_, M
 
 pub fn picture_displayer(appdata: &AppData) -> Element<'_, Message> {
     if let Some(image) = &appdata.image {
-        let image = Viewer::new(
+        let image_viewer = Viewer::new(
             &image.handle,
             Fill,
             Fill,
@@ -109,65 +96,22 @@ pub fn picture_displayer(appdata: &AppData) -> Element<'_, Message> {
             Message::SetViewerOffset,
         );
 
-        let _overlay: Container<'_, Message> = container("")
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .style(|_theme: &Theme| {
-                container::Style {
-                    background: Some(Color::from_rgba(0.0, 0.0, 0.0, 0.6).into()),
-                    ..Default::default()
-                }
-            });
-
+        container(image_viewer)
+            .center_x(Fill).center_y(Fill)
+            .into()
+    }
+    else if appdata.current_site.is_some() {
         container(
-            //stack!(image, overlay).width(Length::Shrink).height(Length::Shrink)
-            stack!(image)
+            text("Fetch an image!").size(24)
         )
         .center_x(Fill).center_y(Fill)
         .into()
     }
     else {
         container(
-            text("Loading...").size(20)
+            text("Select a site!").size(24)
         )
         .center_x(Fill).center_y(Fill)
         .into()
     }
-}
-
-pub fn notifications(notifications:&Vec<Notification>) -> Element<'_, Message> {
-    let notif_col = Column::new().extend(
-        notifications.iter().rev()
-            .map(|n| notification(n))
-    );
-
-    container(
-        notif_col.spacing(12)
-    )
-    .align_bottom(Fill)
-    .align_right(Fill)
-    .padding(30)
-    .into()
-}
-
-pub fn notification(notification: &Notification) -> Element<'_, Message> {
-    let r = rng().next_u32().to_string();
-    let msg = format!("{} - {r}", notification.message);
-    container(
-        text(msg)
-    )
-    .padding(15)
-    .style(|_| {
-        Style {
-            background: Some(Color::from_rgba8(0, 0, 0, 0.6).into()),
-            text_color: Some(Color::WHITE),
-            border: Border {
-                width: 0.0,
-                radius: 10.into(),
-                color: Color::BLACK,
-            },
-            ..Style::default()
-        }
-    })
-    .into()
 }

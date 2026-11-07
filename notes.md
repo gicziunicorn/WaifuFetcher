@@ -31,6 +31,7 @@ Ideas:
  - see which website api is online
  - log level option in config
  - reverse dns lookup at the start
+ - group toggle action in Message
 
 
 Sites:

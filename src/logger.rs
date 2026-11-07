@@ -86,11 +86,12 @@ impl<'a> Visit for CustomVisitor<'a> {
 
         let mut lines = formatted.lines();
         let mut message = lines.next().unwrap_or_default().to_string();
+        let padding = if field.name() == "causes" { "\t\t    " } else { "            " };
         for line in lines {
             if self.ansi {
-                write!(message, "\n            \x1b[38;5;240m|\x1b[38;5;15m   {line}");
+                write!(message, "\n{padding}\x1b[38;5;240m|\x1b[38;5;15m   {line}");
             } else {
-                write!(message, "\n            |   {line}");
+                write!(message, "\n{padding}|   {line}");
             }
         }
 
@@ -102,7 +103,7 @@ impl<'a> Visit for CustomVisitor<'a> {
                     write!(self.data, "{message}");
                 }
                 else if field.name() == "causes" {
-                    let causes = message.split("|");
+                    let causes = message.split("|$|");
                     for cause in causes {
                         self.data.push_str(&format!("\n\t\tCaused by: {cause}"));
                     }

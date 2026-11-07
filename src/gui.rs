@@ -9,38 +9,30 @@ use iced::{
         text, container,
     }
 };
-use crate::app::{Message, App};
+use crate::app::App;
+use crate::gui::notification::notifications;
 use crate::gui::{main_screen::main_screen, settings_screen::settings_screen};
+use crate::update::Message;
 
 mod main_screen;
 mod settings_screen;
+mod notification;
 
 
+/// The main view of the app
 pub fn view(appstate: &App) -> Element<'_, Message> {
     let appdata = &appstate.appdata;
+
     let main_screen = main_screen(appdata);
-    if !appdata.in_settings {
-        main_screen
-    }
-    else {
-        stack!(
-            main_screen,
-            settings_screen(&appdata.settings, appdata.states.settings_menu_focused)
-        ).into()
-    }
+    let settings_screen = if appdata.in_settings {
+        Some(settings_screen(&appdata.settings, &appdata.states))
+    } else { None };
+    let notifications = notifications(&appdata.notifications);
 
-    /*println!("rerendered");
     stack!(
-        main_screen(appdata),
-        settings_screen(appdata)
-    ).into()*/
-
-    // If appdata is not found then show the error message.
-    // let error = appstate.error.as_deref().unwrap_or_default();
-    // container(
-    //     text(format!("An error occurred: {}", error)).size(20)
-    // )
-    // .center_x(Fill).center_y(Fill)
-    // .into()
+        main_screen,
+        settings_screen,
+        notifications,
+    ).into()
 }
 
