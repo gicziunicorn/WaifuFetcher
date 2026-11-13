@@ -25,17 +25,14 @@ use rfd::AsyncFileDialog;
 use waifu_api::sites::{Site, Sites};
 
 use crate::{
-    error, ErrorDetails,
-    app::{App, FetchedImage, Notification, NotificationType},
-    update::Message::Notify,
-    config::Config,
-    components::dropdown::DropdownAction,
+    ErrorDetails, app::{App, FetchedImage, Notification, NotificationType, notify}, components::dropdown::DropdownAction, config::Config, error, update::Message::Notify,
 };
 
 
 // Messages that the application uses to notify itself and handle tasks.
 #[derive(Debug, Clone)]
 pub enum Message {
+    Disable(bool),
     /// Do nothing
     None,
     /// Post a notification
@@ -80,6 +77,7 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
     let appdata = &mut app.appdata;
 
     match message {
+        Message::Disable(val) => {appdata.states.disabled = val; Task::none()},
         // Do nothing
         Message::None => Task::none(),
         /// Post a notification
@@ -165,7 +163,7 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
                             Err(e) => Err(e),
                         };
 
-                        debug!("Got image in: {:.2}s", timer.elapsed().as_secs_f32());
+                        debug!("Got response in: {:.2}s", timer.elapsed().as_secs_f32());
 
                         (result, site) // return the site, since its fields could've been modified (like the ratelimits)
                     },
@@ -353,23 +351,36 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
                         return Task::none();
                     }
 
-                    let Ok(parsed_input) = input.parse::<f64>() else {
+                    if input.parse::<f64>().is_err() {
                         return Task::none();
                     };
 
-                    if parsed_input < 1.0 || !parsed_input.is_finite() {
-                        return Task::none();
-                    }
-
-                    // convert to ms
-                    let interval = (parsed_input * 1000.0).round() as u64;
-
-                    appdata.states.auto_fetch_int_input = (interval as f64 / 1000.0).to_string();
+                    appdata.states.auto_fetch_int_input = input;
 
                     Task::none()
                 }
                 Interaction::AutoFetchIntervalSubmit => {
-                    debug!("Submitted!");
+                    let input = &appdata.states.auto_fetch_int_input;
+
+                    if input == "" {
+                        return Task::none();
+                    }
+
+                    let Ok(parsed_input) = input.parse::<f64>() else {
+                        return Task::done(notify("Failed to parse input!"));
+                    };
+
+                    if !parsed_input.is_finite() {
+                        return Task::done(notify("Try a bit smaller value..."));
+                    }
+                    if parsed_input < 1.0 {
+                        return Task::done(notify("Value can't be smaller than one!"));
+                    }
+
+                    let interval = (parsed_input * 1000.0).round() as u64;
+
+                    appdata.settings.auto_fetch_interval = interval;
+
                     Task::none()
                 }
             }

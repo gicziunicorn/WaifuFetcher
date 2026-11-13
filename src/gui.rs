@@ -18,6 +18,7 @@ mod main_screen;
 mod settings_screen;
 mod notification;
 mod bottom_bar;
+mod navbar;
 
 
 /// The main view of the app

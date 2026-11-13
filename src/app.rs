@@ -46,6 +46,10 @@ pub enum NotificationType {
     Error,
 }
 
+pub fn notify(msg: impl ToString) -> Message {
+    return Message::Notify(msg.to_string());
+}
+
 /// Information about the fetched image
 #[derive(Debug, Clone)]
 pub struct FetchedImage {
@@ -66,6 +70,7 @@ pub struct States {
     pub zoom: f32,
     pub image_offset: Vector,
     pub auto_fetch_int_input: String,
+    pub disabled: bool,
 }
 impl Default for States {
     fn default() -> Self {
@@ -76,6 +81,7 @@ impl Default for States {
             zoom: 1.0,
             image_offset: Vector::default(),
             auto_fetch_int_input: String::new(),
+            disabled: false,
         };
         states
     }
@@ -85,17 +91,22 @@ impl Default for States {
 // Holds values that can be changed by the user in the settings.
 // This struct is the configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Settings {
     pub current_site: Option<Sites>, /// Only store Sites, not Site since there's no need to save the full struct into the config
+    // image viewer
     pub fill_screen: bool,
     pub image_save_path: PathBuf,
     pub image_scale_step: f32,
     pub image_min_scale: f32,
     pub image_max_scale: f32,
     pub image_opacity: f32,
+    // fetching
     pub fetch_on_startup: bool,
+    pub fetch_on_site_change: bool,
     pub auto_fetch: bool,
     pub auto_fetch_interval: u64,
+
     pub notification_len: u64,
 }
 impl Default for Settings {
@@ -106,15 +117,19 @@ impl Default for Settings {
 
         Settings {
             current_site: None,
+
             fill_screen: true,
             image_save_path: save_path,
             image_scale_step: 0.1,
             image_min_scale: 0.25,
             image_max_scale: 10.0,
             image_opacity: 1.0,
+
             fetch_on_startup: false,
+            fetch_on_site_change: false,
             auto_fetch: false,
             auto_fetch_interval: 5000,
+
             notification_len: 3,
         }
     }

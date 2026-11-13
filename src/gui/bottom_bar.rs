@@ -1,13 +1,13 @@
 #![warn(unused)]
-use iced::Length::Fill;
-use iced::widget::Space;
+use chrono::Local;
 use iced::{
-    Alignment, Border, Element, Theme,
-    widget::{ row, text, container, container::Style }
+    Alignment, Border, Element, Theme, Length::Fill,
+    widget::{container, container::Style, row, text, Space},
 };
-use crate::app::AppData;
-use crate::update::Message;
-
+use crate::{
+    app::AppData,
+    update::Message
+};
 
 
 pub fn bottom_bar(appdata: &AppData) -> Element<'_, Message> {
@@ -23,13 +23,18 @@ pub fn bottom_bar(appdata: &AppData) -> Element<'_, Message> {
             Space::new().width(20),
 
             if let Some(site) = &appdata.current_site {
-                let rl_rst = site.get_ratelimit_reset()
-                    .map(|date| date.to_string())
+                let rl_rst = site
+                    .get_ratelimit_reset()
+                    .map(|date| {
+                        date.with_timezone(&Local)
+                            .format("%Y-%m-%d %H:%M:%S")
+                            .to_string()
+                    })
                     .unwrap_or(String::from("-"));
 
                 text(format!("Rate limit reset: {}", rl_rst)).size(14)
             }
-            else { text("") }
+            else { text("") },
         ]
         .width(Fill)
         .align_y(Alignment::Center)

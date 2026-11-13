@@ -1,10 +1,19 @@
 #![allow(unused)]
 use iced::{
-    Alignment, Border, Color, Element, Length::{self, Fill, Shrink}, Padding, Theme, alignment::{Horizontal, Vertical}, gradient::Linear as LinearGradient, theme::palette::deviate, widget::{space, text::LineHeight, text_input, toggler}
+    Alignment, Border, Color, Element,
+    Length::{self, Fill, Shrink}, Padding, Theme,
+    alignment::{Horizontal, Vertical},
+    gradient::Linear as LinearGradient,
+    theme::palette::{deviate, darken},
 };
 use iced::widget::{
-    Space, button, column, container, mouse_area, opaque, row, stack, text,
-    container::Style as ContainerStyle, button::Style as ButtonStyle, text::Style as TextStyle, toggler::Style as TogglerStyle,
+    button, column, container, mouse_area, opaque, row, stack, text, space, toggler, text_input,
+    text::LineHeight, Space,
+    container::Style as ContainerStyle,
+    button::Style as ButtonStyle,
+    text::Style as TextStyle,
+    toggler::Style as TogglerStyle,
+    toggler::Status as TogglerStatus,
 };
 use iced_fonts::bootstrap::{self, floppy, floppytwo_fill, foldertwo, x};
 
@@ -188,6 +197,80 @@ pub fn settings_screen<'a>(settings: &'a Settings, states: &'a States) -> Elemen
 
 
 fn center<'a>(settings: &'a Settings, states: &'a States) -> Element<'a, Message> {
+    let default_toggler_style = |theme: &Theme, status: TogglerStatus| {
+        let palette = theme.extended_palette();
+
+        let inactive_style = TogglerStyle {
+            background: palette.background.weakest.color.into(),
+            background_border_width: 1.5,
+            background_border_color: palette.background.strong.color.into(),
+            foreground: palette.background.strong.color.into(),
+            foreground_border_width: 0.0,
+            foreground_border_color: Color::WHITE,
+            text_color: None,
+            border_radius: None,
+            padding_ratio: 0.175,
+        };
+
+        let disabled_inactive_style = TogglerStyle {
+            background: darken(palette.background.weakest.color, 0.07).into(),
+            background_border_width: 1.5,
+            background_border_color: palette.background.strong.color.into(),
+            foreground: darken(palette.background.strong.color, 0.07).into(),
+            foreground_border_width: 0.0,
+            foreground_border_color: Color::WHITE,
+            text_color: None,
+            border_radius: None,
+            padding_ratio: 0.175,
+        };
+
+        let active_style = TogglerStyle {
+            background: palette.success.base.color.into(),
+            background_border_width: 1.5,
+            background_border_color: palette.background.weakest.color.into(),
+            foreground: palette.background.weakest.color.into(),
+            foreground_border_width: 0.0,
+            foreground_border_color: Color::WHITE,
+            text_color: None,
+            border_radius: None,
+            padding_ratio: 0.175,
+        };
+
+        let disabled_active_style = TogglerStyle {
+            background: darken(palette.success.base.color, 0.07).into(),
+            background_border_width: 1.5,
+            background_border_color: palette.background.weakest.color.into(),
+            foreground: darken(palette.background.weakest.color, 0.07).into(),
+            foreground_border_width: 0.0,
+            foreground_border_color: Color::WHITE,
+            text_color: None,
+            border_radius: None,
+            padding_ratio: 0.175,
+        };
+
+        match status {
+            TogglerStatus::Active{is_toggled} |
+            TogglerStatus::Hovered{is_toggled} => {
+                match is_toggled {
+                    false => inactive_style,
+                    true => active_style,
+                }
+            },
+            TogglerStatus::Disabled{is_toggled} => {
+                match is_toggled {
+                    false => disabled_inactive_style,
+                    true => disabled_active_style,
+                }
+            }
+        }
+
+    };
+
+    let toggle = if !states.disabled {
+        Some(|val| Message::Interaction(Interaction::ToggleAutoFetch(val)))
+    }
+    else { None };
+
     column![
         // Image save folder
         row![
@@ -250,30 +333,61 @@ fn center<'a>(settings: &'a Settings, states: &'a States) -> Element<'a, Message
         .align_y(Alignment::Center),
         // -----------------
 
-        //
-        // -----------------
 
-
+        // Values
         row![ text( format!("Image opacity: {:.1}", settings.image_opacity) ) ],
         row![ text( format!("Image scale minimum: {:.3}", settings.image_min_scale) ) ],
         row![ text( format!("Image scale maximum: {:.3}", settings.image_max_scale) ) ],
         row![ text( format!("Image scale step: {:.2}", settings.image_scale_step) ) ],
+        // -----------------
+
 
         Space::new().height(20),
 
+        toggler(states.disabled)
+            .label("disabled")
+            .on_toggle(Message::Disable)
+            .style(default_toggler_style),
+
         // Set auto fetch
-        toggler(settings.auto_fetch)
-            .label("Auto fetch")
-            .on_toggle(|val| Message::Interaction(Interaction::ToggleAutoFetch(val))),
+        row![
+            text("Auto fetch").size(21),
+            toggler(settings.auto_fetch)
+                .size(24)
+                .on_toggle_maybe(toggle)
+                .style(default_toggler_style),
+        ]
+        .spacing(12)
+        .align_y(Alignment::Center),
+        // -----------------
+
+
+        Space::new().height(16),
+
 
         // Auto fetch interval
-        text( format!("int: {}", settings.auto_fetch_interval.to_string()) ),
         row![
-            text("Auto fetch interval:"),
+            text( format!("Auto fetch interval: {}s", settings.auto_fetch_interval as f64/1000.0) ).size(18),
+            text( format!("({}ms)", settings.auto_fetch_interval) ).size(18)
+                .style(|theme: &Theme| {
+                    let color = theme.extended_palette().background.weaker.text.scale_alpha(0.7);
+                    TextStyle { color: Some(color) }
+                }),
+        ].spacing(8),
+
+        Space::new().height(8),
+
+        row![
+            text("Change interval:").size(18),
+            Space::new().width(6),
             text_input("Enter a number", &states.auto_fetch_int_input)
+                .width(60)
                 .on_input(|val| Message::Interaction(Interaction::AutoFetchIntervalInput(val)))
                 .on_submit(Message::Interaction(Interaction::AutoFetchIntervalSubmit)),
-        ],
+            text("s").size(18),
+        ]
+        .align_y(Alignment::Center),
+        // -----------------
 
     ].into()
 }

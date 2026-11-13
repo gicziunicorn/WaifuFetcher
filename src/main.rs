@@ -10,8 +10,8 @@ mod update;
 
 use anyhow::{Context, Error, Result};
 use app::App;
-use std::net::Ipv4Addr;
-use iced::Theme;
+use std::{borrow::Cow, net::Ipv4Addr};
+use iced::{Font, Theme};
 use waifu_api::fetcher::Fetcher;
 use wreq::Client;
 use tracing::info;
@@ -25,16 +25,6 @@ static APP_NAME: &str = "WaifuFetcher";
 // Most sites require or at least recommend this.
 static APP_USER_AGENT: &str = "WaifuFetcher (https://github.com/gicziunicorn/WaifuFetcher)";
 
-
-// Make converting errors to String easier
-// trait ResultToString<T> {
-//     fn err_to_string(self) -> Result<T, String>;
-// }
-// impl<T, E: std::fmt::Display> ResultToString<T> for Result<T, E> {
-//     fn err_to_string(self) -> Result<T, String> {
-//         self.map_err(|e| e.to_string())
-//     }
-// }
 
 //-- Make errors easily loggable --
 /// Shared methods for error values
@@ -82,7 +72,7 @@ macro_rules! error {
         );
     }};
 }
-//----
+
 
 
 fn main() -> Result<()> {
@@ -106,9 +96,14 @@ fn main() -> Result<()> {
     )
     .title(APP_NAME)
     .theme(Theme::KanagawaDragon)
-    // Add the bootstrap font for icons
-    .font(iced_fonts::BOOTSTRAP_FONT_BYTES)
     .subscription(App::subscription)
+    // Add fonts
+    .font(&include_bytes!("../assets/fonts/Roboto-Regular.ttf")[..])
+    .font(&include_bytes!("../assets/fonts/Roboto-Medium.ttf")[..])
+    .font(&include_bytes!("../assets/fonts/Roboto-Bold.ttf")[..])
+    .font(&include_bytes!("../assets/fonts/Roboto-Italic.ttf")[..])
+    .font(iced_fonts::BOOTSTRAP_FONT_BYTES)
+    .default_font(Font::with_name("Roboto"))
     .run()
     .context("Failed to run the iced application")?;
 
