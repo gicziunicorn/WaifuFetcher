@@ -39,6 +39,8 @@ pub enum Message {
     Notify(String),
     /// Delete old notifications
     NotificationEnd,
+    /// An event that fires on every second
+    Tick,
     /// Let the user pick a folder
     PickFolder,
     /// Set the path where the pictures will be saved
@@ -80,7 +82,7 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
         Message::Disable(val) => {appdata.states.disabled = val; Task::none()},
         // Do nothing
         Message::None => Task::none(),
-        /// Post a notification
+        // Post a notification
         Message::Notify(msg) => {
             if appdata.notifications.len() >= 5 {
                 appdata.notifications.remove(0);
@@ -105,6 +107,25 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
             if appdata.notifications.len() > 0 {
                 appdata.notifications.remove(0);
             }
+            Task::none()
+        },
+        // An event that fires on every second
+        Message::Tick => {
+            println!("tick");
+            // Check if the app should auto fetch and if the current site is supported
+            if let Some(current_site) = appdata.settings.current_site
+            && current_site == Sites::NekosBest {
+                return Task::none();
+            }
+
+            let next = appdata.states.next_auto_fetch - 1000;
+
+            if next == 0 {
+                appdata.states.next_auto_fetch = appdata.settings.auto_fetch_interval;
+                return Task::done(Message::FetchImage);
+            }
+
+            appdata.states.next_auto_fetch = next;
             Task::none()
         },
         // Let the user pick a folder
@@ -332,12 +353,27 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
                             let site = chosen_value.site(app.fetcher.clone());
                             appdata.current_site = Some(site);
                             appdata.states.dropdown_open = false;
-                            debug!("Set site to: {:?}", chosen_value);
+                            // reset the timer
+                            if chosen_value == Sites::NekosBest {
+                                appdata.states.next_auto_fetch = 0;
+                            } else {
+                                appdata.states.next_auto_fetch = appdata.settings.auto_fetch_interval;
+                            }
+
+                            // debug!("Set site to: {:?}", chosen_value);
                         }
                     }
                     Task::none()
                 }
                 Interaction::ToggleAutoFetch(val) => {
+                    // reset the timer
+                    if let Some(current_site) = appdata.current_site.clone().map(|s| s.into_sites())
+                    && current_site != Sites::NekosBest {
+                        appdata.states.next_auto_fetch = appdata.settings.auto_fetch_interval;
+                    } else {
+                        appdata.states.next_auto_fetch = 0;
+                    }
+
                     appdata.settings.auto_fetch = val;
                     Task::none()
                 }

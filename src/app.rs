@@ -71,6 +71,8 @@ pub struct States {
     pub image_offset: Vector,
     pub auto_fetch_int_input: String,
     pub disabled: bool,
+    /// The time left until the next af, in ms
+    pub next_auto_fetch: u64,
 }
 impl Default for States {
     fn default() -> Self {
@@ -82,6 +84,7 @@ impl Default for States {
             image_offset: Vector::default(),
             auto_fetch_int_input: String::new(),
             disabled: false,
+            next_auto_fetch: 5000,
         };
         states
     }
@@ -105,6 +108,7 @@ pub struct Settings {
     pub fetch_on_startup: bool,
     pub fetch_on_site_change: bool,
     pub auto_fetch: bool,
+    /// In ms
     pub auto_fetch_interval: u64,
 
     pub notification_len: u64,
@@ -277,15 +281,19 @@ impl App {
                     }
                 });
 
-        let auto_fetch_interval = Duration::from_millis(self.appdata.settings.auto_fetch_interval);
-        let auto_fetch = if self.appdata.settings.auto_fetch {
-            iced::time::every(auto_fetch_interval).map(|_| Message::FetchImage)
-        } else {
-            Subscription::none()
-        };
+        let countdown = if self.appdata.settings.auto_fetch
+            && let Some(current_site) = self.appdata.settings.current_site
+            && current_site != Sites::NekosBest {
+                println!("sub");
+                iced::time::every(Duration::from_secs(1))
+                    .with(current_site) // A random value that resets the subscription when the site changes
+                    .map(|_| Message::Tick)
+            } else {
+                Subscription::none()
+            };
 
         // Run multiple subscriptions at the same time
-        Subscription::batch([key_listener, auto_fetch])
+        Subscription::batch([key_listener, countdown])
     }
 
     // pub fn theme(&self) -> Theme { Theme::TokyoNight }

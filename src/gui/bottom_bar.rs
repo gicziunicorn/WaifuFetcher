@@ -20,7 +20,9 @@ pub fn bottom_bar(appdata: &AppData) -> Element<'_, Message> {
             }
             else { text("") },
 
+
             Space::new().width(20),
+
 
             if let Some(site) = &appdata.current_site {
                 let rl_rst = site
@@ -35,6 +37,21 @@ pub fn bottom_bar(appdata: &AppData) -> Element<'_, Message> {
                 text(format!("Rate limit reset: {}", rl_rst)).size(14)
             }
             else { text("") },
+
+
+            Space::new().width(20),
+
+
+            if appdata.settings.auto_fetch && appdata.states.next_auto_fetch != 0 {
+                let remaining = (appdata.states.next_auto_fetch - 1000) / 1000;
+                let rem_min = remaining / 60;
+                let rem_secs = remaining % 60;
+
+                let countdown = format!("Next fetch: {:02}:{:02}", rem_min, rem_secs);
+
+                text(countdown)
+            }
+            else { text("Next fetch: -") },
         ]
         .width(Fill)
         .align_y(Alignment::Center)
