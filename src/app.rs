@@ -1,33 +1,28 @@
-#![allow(unused)]
-use anyhow::{Context, Result, anyhow};
+#![warn(unused)]
+use anyhow::anyhow;
 use bytes::Bytes;
 use iced::{
     Element, Subscription, Task, Vector,
     widget::image::Handle,
-    keyboard::{
-        Key::{self, Named as NamedKey, Character as CharacterKey},
-        key::{Named as NamedKeys},
+    keyboard::
         Event::KeyReleased
-    }
+
 };
-use image::{ImageFormat, guess_format};
+use image::ImageFormat;
 use serde::{Deserialize, Serialize};
-use tokio::time::sleep;
 use tracing::{debug, info, warn};
 use waifu_api::fetcher::Fetcher;
 use std::{
     fs,
     path::PathBuf,
-    time::{Duration, Instant}
+    time::Duration
 };
 use dirs::{home_dir, picture_dir};
-use rfd::AsyncFileDialog;
 use waifu_api::sites::{Site, Sites};
 
 use crate::update::{self, Message};
 use crate::config::Config;
-use crate::components::dropdown::{DropdownAction};
-use crate::{error, ErrorDetails};
+use crate::error;
 use crate::gui::view;
 
 
@@ -284,7 +279,6 @@ impl App {
         let countdown = if self.appdata.settings.auto_fetch
             && let Some(current_site) = self.appdata.settings.current_site
             && current_site != Sites::NekosBest {
-                println!("sub");
                 iced::time::every(Duration::from_secs(1))
                     .with(current_site) // A random value that resets the subscription when the site changes
                     .map(|_| Message::Tick)

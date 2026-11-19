@@ -1,31 +1,31 @@
-#![allow(unused)]
-use anyhow::{Context, Result, anyhow};
+#![warn(unused)]
+use anyhow::{Context, Result};
 use bytes::Bytes;
 use iced::{
-    Element, Subscription, Task, Vector,
+    Task, Vector,
     widget::image::Handle,
     keyboard::{
         Key::{self, Named as NamedKey, Character as CharacterKey},
-        key::{Named as NamedKeys},
-        Event::KeyReleased
+        key::Named as NamedKeys
     }
 };
-use image::{ImageFormat, guess_format};
-use serde::{Deserialize, Serialize};
+use image::guess_format;
 use tokio::time::sleep;
-use tracing::{debug, info, warn};
-use waifu_api::{error::FetchResult, fetcher::Fetcher, sites::Post};
+use tracing::{debug, info};
+use waifu_api::{error::FetchResult, sites::Post};
 use std::{
     fs,
     path::PathBuf,
     time::{Duration, Instant}
 };
-use dirs::{home_dir, picture_dir};
 use rfd::AsyncFileDialog;
 use waifu_api::sites::{Site, Sites};
 
 use crate::{
-    ErrorDetails, app::{App, FetchedImage, Notification, NotificationType, notify}, components::dropdown::DropdownAction, config::Config, error, update::Message::Notify,
+    error,
+    app::{App, FetchedImage, Notification, NotificationType, notify},
+    components::dropdown::DropdownAction,
+    update::Message::Notify,
 };
 
 
@@ -111,7 +111,6 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
         },
         // An event that fires on every second
         Message::Tick => {
-            println!("tick");
             // Check if the app should auto fetch and if the current site is supported
             if let Some(current_site) = appdata.settings.current_site
             && current_site == Sites::NekosBest {
@@ -359,8 +358,6 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
                             } else {
                                 appdata.states.next_auto_fetch = appdata.settings.auto_fetch_interval;
                             }
-
-                            // debug!("Set site to: {:?}", chosen_value);
                         }
                     }
                     Task::none()
@@ -378,20 +375,9 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
                     Task::none()
                 }
                 Interaction::AutoFetchIntervalInput(input) => {
-                    if input.len() > if input.contains('.') && !input.ends_with('.') { 5 } else { 4 } {
-                        return Task::none();
-                    }
-
-                    if input.ends_with('.') || input == "" {
+                    if input.len() <= 4 && (input.parse::<u64>().is_ok() || input == "") {
                         appdata.states.auto_fetch_int_input = input;
-                        return Task::none();
                     }
-
-                    if input.parse::<f64>().is_err() {
-                        return Task::none();
-                    };
-
-                    appdata.states.auto_fetch_int_input = input;
 
                     Task::none()
                 }
@@ -399,21 +385,19 @@ pub fn update(app: &mut App, message: Message) -> Task<Message> {
                     let input = &appdata.states.auto_fetch_int_input;
 
                     if input == "" {
+                        appdata.states.auto_fetch_int_input = (appdata.settings.auto_fetch_interval / 1000).to_string();
                         return Task::none();
                     }
 
-                    let Ok(parsed_input) = input.parse::<f64>() else {
+                    let Ok(parsed_input) = input.parse::<u64>() else {
                         return Task::done(notify("Failed to parse input!"));
                     };
 
-                    if !parsed_input.is_finite() {
-                        return Task::done(notify("Try a bit smaller value..."));
-                    }
-                    if parsed_input < 1.0 {
+                    if parsed_input < 1 {
                         return Task::done(notify("Value can't be smaller than one!"));
                     }
 
-                    let interval = (parsed_input * 1000.0).round() as u64;
+                    let interval = parsed_input * 1000;
 
                     appdata.settings.auto_fetch_interval = interval;
 

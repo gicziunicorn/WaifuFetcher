@@ -1,12 +1,17 @@
+#![warn(unused)]
 use strum::IntoEnumIterator;
 use iced::Length::Fill;
 use iced::{
     Alignment, Border, Color, Element, Theme,
-    widget::{ Space, button, column, row, text, container, container::Style }
+    widget::{ Space, button, row, text, container, container::Style }
 };
 use waifu_api::sites::{Site, Sites};
 
-use crate::{APP_NAME, app::AppData, components::{dropdown::image_dropdown, image_viewer::Viewer}, gui::bottom_bar::bottom_bar, update::{Interaction, Message}};
+use crate::{
+    APP_NAME,
+    components::dropdown::image_dropdown,
+    update::{Interaction, Message}
+};
 
 
 pub fn navbar(current_site: &Option<Site>, dropdown_open: bool, disable_fetch: bool) -> Element<'_, Message> {

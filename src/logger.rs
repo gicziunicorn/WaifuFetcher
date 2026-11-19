@@ -6,12 +6,12 @@ use tracing_appender::non_blocking::WorkerGuard;
 use std::{fs, io};
 use dirs::{data_local_dir, home_dir};
 use time::{UtcOffset, macros::format_description as timefmt};
-use tracing_subscriber::{EnvFilter, Layer, fmt::{self, FormatEvent, FormatFields, FormattedFields, time::OffsetTime}, layer::SubscriberExt, registry::LookupSpan, util::SubscriberInitExt};
+use tracing_subscriber::{EnvFilter, Layer, fmt::{self, FormatEvent, FormatFields, time::OffsetTime}, layer::SubscriberExt, registry::LookupSpan, util::SubscriberInitExt};
 
 use crate::APP_NAME;
 
 
-// Custom formatter (instead of doing something better)
+// Custom log formatter (instead of doing something better)
 // I wanted the terminal logs to look nice so I implemented my own formatter
 struct CustomFormatter {
     ansi: bool,
@@ -31,10 +31,10 @@ where
     ) -> std::fmt::Result
     {
         // ANSI colors
-        let black = "\x1b[38;5;0m";
+        // let black = "\x1b[38;5;0m";
         let white = "\x1b[38;5;15m";
         let gray = "\x1b[38;5;251m";
-        let lightgray = "\x1b[38;5;253m";
+        // let lightgray = "\x1b[38;5;253m";
         let blue = "\x1b[38;5;12m";
         let red = "\x1b[38;5;9m";
         let yellow = "\x1b[38;5;3m";
@@ -89,9 +89,9 @@ impl<'a> Visit for CustomVisitor<'a> {
         let padding = if field.name() == "causes" { "\t\t    " } else { "            " };
         for line in lines {
             if self.ansi {
-                write!(message, "\n{padding}\x1b[38;5;240m|\x1b[38;5;15m   {line}");
+                let _= write!(&mut message, "\n{padding}\x1b[38;5;240m|\x1b[38;5;15m   {line}");
             } else {
-                write!(message, "\n{padding}|   {line}");
+                let _= write!(&mut message, "\n{padding}|   {line}");
             }
         }
 
@@ -100,7 +100,7 @@ impl<'a> Visit for CustomVisitor<'a> {
             Level::ERROR => {
                 // The "main" field
                 if field.name() == "error" {
-                    write!(self.data, "{message}");
+                    let _= write!(&mut self.data, "{message}");
                 }
                 else if field.name() == "causes" {
                     let causes = message.split("|$|");
@@ -116,7 +116,7 @@ impl<'a> Visit for CustomVisitor<'a> {
             _ => {
                 // The "main" field
                 if field.name() == "message" {
-                    write!(self.data, "{message}");
+                    let _= write!(&mut self.data, "{message}");
                 }
                 // Include other fields
                 else {

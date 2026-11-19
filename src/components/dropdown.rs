@@ -15,7 +15,7 @@ pub enum DropdownAction<T> {
 
 /// Dropdown with images for each element
 pub fn image_dropdown<'a, Message, I>(
-    mut items: Vec<I>,
+    items: Vec<I>,
     selected_value: Option<I>,
     is_open: bool,
     callback: impl Fn(DropdownAction<I>) -> Message + 'a,

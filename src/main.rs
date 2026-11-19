@@ -1,6 +1,7 @@
-#![allow(unused)]
+#![warn(unused)]
 #![warn(clippy::unwrap_used)]
 #![warn(unused_extern_crates)]
+//----------------------------------
 mod app;
 mod config;
 mod logger;
@@ -8,15 +9,18 @@ pub mod gui;
 pub mod components;
 mod update;
 
-use anyhow::{Context, Error, Result};
+use anyhow::{Context, Result};
 use app::App;
-use std::{borrow::Cow, net::Ipv4Addr};
-use iced::{Font, Theme};
+use dirs::{config_local_dir, home_dir};
+use image::ImageFormat;
+use std::net::Ipv4Addr;
+use iced::{Font, Theme, window::{self, icon}};
 use waifu_api::fetcher::Fetcher;
 use wreq::Client;
 use tracing::info;
 
 use crate::logger::setup_logger;
+//----------------------------------
 
 
 static APP_NAME: &str = "WaifuFetcher";
@@ -48,6 +52,7 @@ impl ErrorDetails for anyhow::Error {
     }
 }
 
+// implement the trait for strings
 impl ErrorDetails for str {
     fn error_msg(&self) -> String {
         self.to_string()
@@ -62,13 +67,13 @@ impl ErrorDetails for str {
 #[macro_export]
 macro_rules! error {
     ($err:expr) => {{
+        use $crate::ErrorDetails;
+
         let err = $err;
-        let error_msg = err.error_msg();
-        let causes = err.causes();
 
         tracing::error!(
-            error = %error_msg,
-            causes = %causes.join("|$|"),
+            error = %err.error_msg(),
+            causes = %err.causes().join("|$|"),
         );
     }};
 }
@@ -76,27 +81,55 @@ macro_rules! error {
 
 
 fn main() -> Result<()> {
-    let _guard = setup_logger()
-        .context("Failed to set up logger.")?;
+    // Set up logger
+    let _guard = setup_logger().context("Failed to set up logger.")?;
     info!("Logger set up successfully");
 
+    // Run the 'main' function and capture any error
+    if let Err(err) = try_main() {
+        error!(err);
+        std::process::exit(1);
+    }
+
+    Ok(())
+}
+
+
+fn try_main() -> Result<()> {
+    // Request client & fetcher
     let client = Client::builder()
         .local_addresses(Ipv4Addr::UNSPECIFIED, None) // disable ipv6 (i guess)
         .user_agent(APP_USER_AGENT)
         .build()
-        .context("Building the client failed")?;
-
+        .context("Building the requester client failed")?;
     let fetcher = Fetcher::new(client);
 
-    // start the iced application
+    // Variables
+    let config_dir = config_local_dir()
+        .or_else(home_dir)
+        .context("Failed to get the local config directory!")?;
+
+    //-- App configuration --
+    // App icon
+    let default_appicon = include_bytes!("../assets/icons/linux/128x128.png");
+    let appicon = icon::from_file(config_dir.join(APP_NAME).join("icon.png"))
+        .or_else(|_| {icon::from_file_data(default_appicon, Some(ImageFormat::Png))})
+        .ok();
+
+    // Start the iced application
     iced::application(
-        move || App::new(fetcher.clone()),
+        move|| App::new(fetcher.clone()),
         App::update,
         App::view
     )
     .title(APP_NAME)
     .theme(Theme::KanagawaDragon)
     .subscription(App::subscription)
+    .window(window::Settings {
+        icon: appicon,
+        position: window::Position::Centered,
+        ..Default::default()
+    })
     // Add fonts
     .font(&include_bytes!("../assets/fonts/Roboto-Regular.ttf")[..])
     .font(&include_bytes!("../assets/fonts/Roboto-Medium.ttf")[..])

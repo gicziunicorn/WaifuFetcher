@@ -1,14 +1,8 @@
 // Contains the main view() function for the app
 // and act as a mod.rs for the files inside gui/
-#![allow(unused)]
-use iced::Length::Fill;
+#![warn(unused)]
 use iced::widget::stack;
-use iced::{
-    Element,
-    widget::{
-        text, container,
-    }
-};
+use iced::Element;
 use crate::app::App;
 use crate::gui::notification::notifications;
 use crate::gui::{main_screen::main_screen, settings_screen::settings_screen};

@@ -1,13 +1,9 @@
-#![allow(unused)]
+#![warn(unused)]
 use iced::{
-    Alignment, Border, Color, Element,
-    Length::{self, Fill, Shrink}, Padding, Theme,
-    alignment::{Horizontal, Vertical},
-    gradient::Linear as LinearGradient,
-    theme::palette::{deviate, darken},
+    Alignment, Border, Color, Element, Length::{self, Fill, Shrink}, Padding, Theme, gradient::Linear as LinearGradient, padding, theme::palette::{darken, deviate},
 };
 use iced::widget::{
-    button, column, container, mouse_area, opaque, row, stack, text, space, toggler, text_input,
+    button, column, container, mouse_area, opaque, row, stack, text, toggler, text_input,
     text::LineHeight, Space,
     container::Style as ContainerStyle,
     button::Style as ButtonStyle,
@@ -15,7 +11,7 @@ use iced::widget::{
     toggler::Style as TogglerStyle,
     toggler::Status as TogglerStatus,
 };
-use iced_fonts::bootstrap::{self, floppy, floppytwo_fill, foldertwo, x};
+use iced_fonts::bootstrap::{floppytwo_fill, foldertwo, x};
 
 use crate::{app::{Settings, States}, update::{Interaction, Message}};
 
@@ -266,10 +262,10 @@ fn center<'a>(settings: &'a Settings, states: &'a States) -> Element<'a, Message
 
     };
 
-    let toggle = if !states.disabled {
-        Some(|val| Message::Interaction(Interaction::ToggleAutoFetch(val)))
-    }
-    else { None };
+    let description_text_style = |theme: &Theme| {
+        let color = deviate(theme.extended_palette().background.weaker.text, 0.07).scale_alpha(0.75);
+        TextStyle { color: Some(color) }
+    };
 
     column![
         // Image save folder
@@ -344,22 +340,31 @@ fn center<'a>(settings: &'a Settings, states: &'a States) -> Element<'a, Message
 
         Space::new().height(20),
 
-        toggler(states.disabled)
-            .label("disabled")
-            .on_toggle(Message::Disable)
-            .style(default_toggler_style),
+        // toggler(states.disabled)
+        //     .label("disabled")
+        //     .on_toggle(Message::Disable)
+        //     .style(default_toggler_style),
 
         // Set auto fetch
         row![
             text("Auto fetch").size(21),
             toggler(settings.auto_fetch)
                 .size(24)
-                .on_toggle_maybe(toggle)
+                .on_toggle(|v| Message::Interaction(Interaction::ToggleAutoFetch(v)))
                 .style(default_toggler_style),
         ]
         .spacing(12)
         .align_y(Alignment::Center),
         // -----------------
+
+        Space::new().height(2),
+        // Description
+        column![
+            text("Automatically fetch images from the selected site at set intervals.").size(14)
+                .style(description_text_style),
+            text("Nekos.best doesn't support this feature.").size(14)
+                .style(description_text_style),
+        ].padding(padding::left(10)),
 
 
         Space::new().height(16),
@@ -375,7 +380,7 @@ fn center<'a>(settings: &'a Settings, states: &'a States) -> Element<'a, Message
                 }),
         ].spacing(8),
 
-        Space::new().height(8),
+        Space::new().height(6),
 
         row![
             text("Change interval:").size(18),

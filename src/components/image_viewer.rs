@@ -3,15 +3,16 @@
 // => moved scale and offset variable out of the element's inner scope
 
 //! Zoom and pan on an image.
-use iced::advanced::renderer::Quad;
 #[warn(unused)]
-use iced::border;
-use iced::advanced::image::{self, FilterMethod, Image};
-use iced::advanced::{Clipboard, Layout, layout, Shell, Widget, renderer};
-use iced::{Color, mouse};
-use iced::advanced::widget::tree::{self, Tree};
-use iced::{ ContentFit, Element, Event, Length, Point, Radians, Rectangle, Size, Vector };
-
+use iced::{
+    Color, ContentFit, Element, Event, Length, Point, Radians, Rectangle, Size, Vector, border, mouse,
+    advanced::{
+        Clipboard, Layout, Shell, Widget, layout,
+        renderer::{self, Quad},
+        image::{self, FilterMethod, Image},
+        widget::tree::{self, Tree}
+    }
+};
 
 
 /// A frame that displays an image with the ability to zoom in/out and pan.
@@ -48,7 +49,7 @@ impl<'a, Handle, Message> Viewer<'a, Handle, Message> {
         F1: Fn(f32) -> Message + 'a,
         F2: Fn(Vector) -> Message + 'a,
     {
-        Viewer {
+        let viewer = Viewer {
             handle: handle.into(),
             width: width.into(),
             height: height.into(),
@@ -62,7 +63,8 @@ impl<'a, Handle, Message> Viewer<'a, Handle, Message> {
             content_fit: ContentFit::default(),
             on_scale: Box::new(on_scale),
             on_offset: Box::new(on_offset),
-        }
+        };
+        viewer
     }
 }
 

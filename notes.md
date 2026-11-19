@@ -29,7 +29,6 @@ To fix:
  - notify saving settings
  - better input field style
  - save images with different names
- - remove . from number input
 
  - better notifications on error (see update.rs:192)
 

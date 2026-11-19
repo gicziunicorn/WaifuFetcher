@@ -1,3 +1,4 @@
+#![warn(unused)]
 use std::{fs, path::PathBuf};
 use anyhow::{Context, Result};
 use dirs::{home_dir, config_local_dir};
